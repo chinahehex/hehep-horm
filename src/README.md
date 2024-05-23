@@ -4,9 +4,14 @@
 - hehep-horm 是一个PHP数据库操作组件
 
 ## 安装
-- 直接下载:
+- **gitee下载**:
+```
+git clone git@gitee.com:chinahehex/hehep-horm.git
 ```
 
+- **github下载**:
+```
+git clone git@github.com:chinahehex/hehep-horm.git
 ```
 - 命令安装：
 ```
