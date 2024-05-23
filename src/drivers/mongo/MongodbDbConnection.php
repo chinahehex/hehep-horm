@@ -1,0 +1,401 @@
+<?php
+namespace  horm\drivers\mongo;
+
+use horm\base\BaseQueryBuilder;
+use horm\base\DbConnection;
+use horm\base\NosqlCommand;
+use MongoDB\Driver\Manager;
+use Exception;
+
+/**
+ * Mongodb扩展连接类
+ *<B>说明：</B>
+ *<pre>
+ *  略
+ *</pre>
+ */
+class MongodbDbConnection extends DbConnection
+{
+
+    /**
+     * Builder 实例
+     *<B>说明：</B>
+     *<pre>
+     *  略
+     *</pre>
+     * @var BaseQueryBuilder
+     */
+    private $builder;
+
+    /**
+     * 当前连接PDO实例
+     *<B>说明：</B>
+     *<pre>
+     *  略
+     *</pre>
+     * @var \MongoDB\Driver\Manager
+     */
+    protected $conn = null;
+
+    /**
+     * 事务session
+     *<B>说明：</B>
+     *<pre>
+     *  略
+     *</pre>
+     * @var \MongoDB\Driver\Session
+     */
+    protected $tranSession = null;
+
+    /**
+     * 获取sql生成对象
+     *<B>说明：</B>
+     *<pre>
+     *  略
+     *</pre>
+     * @return BaseQueryBuilder
+     */
+    public function getQueryBuilder()
+    {
+        if ($this->builder === null) {
+            $this->builder = $this->createQueryBuilder();
+        }
+
+        return $this->builder;
+    }
+
+    /**
+     * 创建生成sql类实例
+     *<B>说明：</B>
+     *<pre>
+     *  略
+     *</pre>
+     * @return BaseQueryBuilder
+     */
+    public function createQueryBuilder()
+    {
+        return new MongoQueryBuilder($this);
+    }
+
+    protected function parseDsn($config = [])
+    {
+        $dsn = 'mongodb://'.($config['username']?"{$config['username']}":'').($config['password']?":{$config['password']}@":'').
+            $config['host'].($config['port']?":{$config['port']}":'');
+
+        return $dsn;
+    }
+
+    /**
+     * 连接数据库
+     *<B>说明：</B>
+     *<pre>
+     *  略
+     *</pre>
+     * @return Manager
+     * @throws Exception
+     */
+    public function connect()
+    {
+        if (is_null($this->conn)) {
+            try {
+
+                $manager = new \MongoDB\Driver\Manager($this->parseDsn($this->config));
+                $this->conn = $manager;
+
+                return $this->conn;
+
+            } catch (\Exception $e) {
+                throw new Exception($e->getMessage());
+            }
+        } else {
+
+            return $this->conn;
+        }
+    }
+
+    /**
+     * 连接数据库
+     *<B>说明：</B>
+     *<pre>
+     *  略
+     *</pre>
+     */
+    protected function initConnect()
+    {
+        if (is_null($this->conn)) {
+            $this->conn = $this->connect();
+        }
+    }
+
+    protected function getCollection($collection)
+    {
+        $collection = $this->conn->selectCollection($this->config['database'], $collection);
+
+        return $collection;
+    }
+
+    /**
+     * 执行查询 返回数据行
+     *<B>说明：</B>
+     *<pre>
+     * 略
+     *</pre>
+     * @param NosqlCommand $command  sql 命令对象
+     * @return array
+     *<pre>
+     *  略
+     *</pre>
+     */
+    public function query($command)
+    {
+
+        $this->initConnect();
+
+        $result = false;
+        $method = $command->getMethod();
+        if ($method != '' && method_exists($this,$method)) {
+            $result = call_user_func_array([$this,$method],[$command]);
+        } else {
+            $result = $this->queryCmd($command);
+        }
+
+        return $result;
+    }
+
+    /**
+     * 执行查询 返回数据行
+     *<B>说明：</B>
+     *<pre>
+     * 略
+     *</pre>
+     * @param NosqlCommand $command sql 命令对象
+     * @return array
+     *<pre>
+     *  略
+     *</pre>
+     */
+    public function execute($command)
+    {
+        $this->initConnect();
+
+        $result = false;
+        $method = $command->getMethod();
+        if ($method != '' && method_exists($this,$method)) {
+            $result = call_user_func_array([$this,$method],[$command]);
+        } else {
+            $result = $this->execCmd($command);
+        }
+
+        return $result;
+    }
+
+    protected function buildNamespace($namespace)
+    {
+        return $this->config['database'].'.' . $namespace;
+    }
+
+    /**
+     * 插入单个数据行
+     *<B>说明：</B>
+     *<pre>
+     *  略
+     *</pre>
+     * @param NosqlCommand $command
+     * @return int
+     */
+    public function insert($command = [])
+    {
+
+        $bulk = new \MongoDB\Driver\BulkWrite;
+        $bulk->insert($command->getOptions('data'));
+        $writeConcern = new \MongoDB\Driver\WriteConcern(\MongoDB\Driver\WriteConcern::MAJORITY, 1000);
+        $insertOneResult = $this->conn->executeBulkWrite($this->buildNamespace($command->getOptions('table')), $bulk, $writeConcern);
+
+        return $insertOneResult->getInsertedCount();
+    }
+
+    /**
+     * 删除记录
+     *<B>说明：</B>
+     *<pre>
+     *  略
+     *</pre>
+     * @param NosqlCommand $command
+     * @return int
+     */
+    public function update($command = [])
+    {
+
+        $bulk = new \MongoDB\Driver\BulkWrite;
+        $bulk->update($command->getOptions('filter'),$command->getOptions('data'),$command->getOptions('opts'));
+        $writeConcern = new \MongoDB\Driver\WriteConcern(\MongoDB\Driver\WriteConcern::MAJORITY, 1000);
+        $updateResult = $this->conn->executeBulkWrite($this->buildNamespace($command->getOptions('table')), $bulk, $writeConcern);
+
+        return $updateResult->getModifiedCount();
+    }
+
+    /**
+     * 删除记录
+     *<B>说明：</B>
+     *<pre>
+     *  略
+     *</pre>
+     * @param NosqlCommand $command
+     * @return int
+     */
+    public function delete($command = [])
+    {
+        $bulk = new \MongoDB\Driver\BulkWrite;
+        $bulk->delete($command->getOptions('filter'),$command->getOptions('opts'));
+        $writeConcern = new \MongoDB\Driver\WriteConcern(\MongoDB\Driver\WriteConcern::MAJORITY, 1000);
+        $deleteResult = $this->conn->executeBulkWrite($this->buildNamespace($command->getOptions('table')), $bulk, $writeConcern);
+
+        return $deleteResult->getDeletedCount();
+    }
+
+
+    /**
+     * 查询记录
+     *<B>说明：</B>
+     *<pre>
+     *  略
+     *</pre>
+     * @param NosqlCommand $command
+     * @return array
+     */
+    public function find($command = [])
+    {
+
+        $query = new \MongoDB\Driver\Query($command->getOptions('filter'), $command->getOptions('opts'));
+        $cursor = $this->conn->executeQuery($this->buildNamespace($command->getOptions('table')), $query);
+        $datas = $this->cursorToArray($cursor);
+
+        return $datas;
+    }
+
+
+    protected function cursorToArray($cursor)
+    {
+
+        $datas = [];
+        foreach ($cursor as $document) {
+            $document = json_decode(json_encode($document),true);
+            $datas[] = $document;
+        }
+
+        return $datas;
+    }
+
+    /**
+     * 聚合查询
+     *<B>说明：</B>
+     *<pre>
+     *  略
+     *</pre>
+     * @param NosqlCommand $command
+     * @return array
+     */
+    public function scalar($command = [])
+    {
+
+        $command = new \MongoDB\Driver\Command([
+            'aggregate' => $command->getOptions('table'),
+            'pipeline' => $command->getOptions('pipelines'),
+        ]);
+
+        $cursor = $this->conn->executeCommand($this->config['database'], $command);
+        $result = $this->cursorToArray($cursor);
+
+        if (isset($result[0]['result'])) {
+            return $result[0]['result'];
+        } else {
+            return [];
+        }
+    }
+
+    /**
+     * 分组查询
+     *<B>说明：</B>
+     *<pre>
+     *  略
+     *</pre>
+     * @param NosqlCommand $command
+     * @return array
+     */
+    public function aggregate($command = [])
+    {
+
+        $mongoCommand = new \MongoDB\Driver\Command([
+            'aggregate' => $command->getOptions('table'),
+            'pipeline' => $command->getOptions('pipelines')
+        ]);
+
+        $cursor = $this->conn->executeCommand($this->config['database'], $mongoCommand);
+        $result = $this->cursorToArray($cursor);
+
+        if (isset($result[0]['result'])) {
+            return $result[0]['result'];
+        } else {
+            return [];
+        }
+    }
+
+    /**
+     * 执行原始命令
+     *<B>说明：</B>
+     *<pre>
+     *  略
+     *</pre>
+     * @param NosqlCommand $command
+     * @return array
+     */
+    public function execCmd($command)
+    {
+        $mongoCommand = new \MongoDB\Driver\Command($command->getCommand());
+        $cursor = $this->conn->executeCommand($this->config['database'], $mongoCommand);
+        $result = $this->cursorToArray($cursor);
+
+        if (isset($result) && isset($result[0]['n'])) {
+            return $result[0]['n'];
+        } else {
+            return 0;
+        }
+    }
+
+    /**
+     * 查询原始命令
+     *<B>说明：</B>
+     *<pre>
+     *  略
+     *</pre>
+     * @param NosqlCommand $command
+     * @return array
+     */
+    public function queryCmd($command)
+    {
+        $command = new \MongoDB\Driver\Command($command->getCommand());
+        $cursor = $this->conn->executeCommand($this->config['database'], $command);
+
+        $result = $this->cursorToArray($cursor);
+
+        return $result;
+    }
+
+
+    public function beginTransaction()
+    {
+        $this->tranSession = $this->conn->startSession();
+        $this->tranSession->startTransaction();
+    }
+
+    public function commit()
+    {
+        $this->tranSession->commitTransaction();
+    }
+
+    public function rollback()
+    {
+        $this->tranSession->abortTransaction();
+    }
+
+}

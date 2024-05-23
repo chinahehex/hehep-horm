@@ -1,0 +1,23 @@
+{
+	"name": "hehep/horm",
+	"description": "hehep-horm 是一个PHP数据库操作组件",
+	"license": "Apache-2.0",
+	"authors": [
+		{
+			"name": "hehe"
+		}
+	],
+	"require": {
+		"php": ">=7.1"
+	},
+	"autoload": {
+		"psr-4": {
+			"horm\\": "src/"
+		}
+	},
+	"autoload-dev": {
+		"psr-4": {
+			"horm\\test": "tests/"
+		}
+	}
+}
