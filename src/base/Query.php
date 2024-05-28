@@ -266,7 +266,7 @@ class Query
 	protected $replace = false;
 
 	/**
-	 * 指定分表序号
+	 * 自增序列
 	 *<B>说明：</B>
 	 *<pre>
 	 *  略
@@ -1083,6 +1083,53 @@ class Query
 
         return $dbConn->getQueryBuilder()->buildRawCommand($this);
     }
+
+    public function getQueryBuilder():BaseQueryBuilder
+	{
+		return $this->getDb()->getQueryBuilder();
+	}
+
+	/**
+	 * 构建自增序列名
+	 *<B>说明：</B>
+	 *<pre>
+	 *  略
+	 *</pre>
+	 * @return string
+	 */
+    public function buildLastIdSequence()
+	{
+		$sequence = '';
+		if (is_string($this->seq) && !empty($this->seq)) {
+
+		} else {
+			$sequence = '';
+		}
+	}
+
+	/**
+	 * 分离带as表名
+	 *<B>说明：</B>
+	 *<pre>
+	 *  略
+	 *</pre>
+	 * @param string $tablename 表名 比如user as name 、user
+	 * @return array  表分离后的数组
+	 *<pre>
+	 *   $out = ['user','u'] user表名,u 表别名
+	 *</pre>
+	 */
+	protected function splitTableName($tablename = '')
+	{
+		$preg =  '/^(.+)\s+AS\s+(.+)\s*.*/i';
+		preg_match ($preg, $tablename,$out);
+
+		if (empty($out)) {
+			return [$tablename,''];
+		}
+
+		return [$out[1],$out[2]];
+	}
 
 
 

@@ -14,22 +14,42 @@ use horm\builders\SqlQueryBuilder;
 class MysqlQueryBuilder extends SqlQueryBuilder
 {
 
-	/**
-	 * 字段和表名处理
-	 * @access protected
-	 * @param string $key
-	 * @return string
-	 */
-	protected function parseColumnName($key  = '')
+    public function formatColumnName(Query $query,$column_name = '')
     {
         //todo 判断表别名
-		$key = trim($key);
-		if (!preg_match('/[,\'\"\*\(\)`.\s]/',$key)) {
-			$key = '`'.$key.'`';
-		}
+        $column_name = trim($column_name);
+        if (!preg_match('/[,\'\"\*\(\)`.\s]/',$column_name)) {
+            $column_name = '`'.$column_name.'`';
+        }
 
-		return $key;
-	}
+        return $column_name;
+    }
+
+
+
+    /**
+     * 构建 between where 条件 sql
+     *<B>说明：</B>
+     *<pre>
+     * 略
+     *</pre>
+     * @param string $operator 操作符
+     * @param array $condition 字段名，字段值 [$column,$values]
+     * @return string
+     */
+    protected function bulidBetweenWhere(Query $query,$operator,$condition = [])
+    {
+        list($columnName, $values) = $condition;
+        $betweenValues = [];
+        foreach ($values as $value) {
+            $betweenValues[] = $this->buildColumnValue($query,$columnName,$value);
+        };
+
+        $columnName = $this->parseColumnName($query,$columnName);
+        $buildSql = " {$columnName} BETWEEN {$betweenValues[0]} AND {$betweenValues[1]}";
+
+        return $buildSql;
+    }
 
     /**
      * 批量插入记录
@@ -56,9 +76,9 @@ class MysqlQueryBuilder extends SqlQueryBuilder
             foreach ($data as $columnName=>$columnValue){
                 if (is_array($columnValue)) {
                     $operator = $columnValue[0];
-                    $value[] = $this->callExpressionMethod($operator,$columnName,$columnValue[1]);
+                    $value[] = $this->callExpressionMethod($query,$operator,$columnName,$columnValue[1]);
                 } else {
-                    $value[] = $this->buildColumnValue($columnName,$columnValue);
+                    $value[] = $this->buildColumnValue($query,$columnName,$columnValue);
                 }
             }
 
@@ -67,8 +87,8 @@ class MysqlQueryBuilder extends SqlQueryBuilder
 
         $replace = $query->getReplace() ? true : false;
 
-        $sql   =  ($replace?'REPLACE':'INSERT').' INTO ' . $this->parseTable($query->getTable())
-            . ' ('.implode(',', $fields).') VALUES '.implode(',',$values);
+        $sql   =  ($replace?'REPLACE':'INSERT').' INTO ' . $this->parseTable($query,$query->getTable())
+            . ' ('.implode(',', array_map(function($field)use($query){return $this->parseColumnName($query,$field);},$fields)).') VALUES '.implode(',',$values);
 
         return $sql;
     }

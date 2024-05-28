@@ -1,5 +1,5 @@
 <?php
-namespace horm\tests\units;
+namespace horm\tests\units\mysql;
 
 use horm\tests\common\AdminUserinfoForceSlaveEntity;
 use horm\tests\common\AdminUserinfoSlaveEntity;
@@ -8,6 +8,8 @@ use horm\tests\TestCase;
 // 主从数据库
 class SalveTest extends TestCase
 {
+    protected static $db_driver = 'mysql';
+
     protected function setUp()
     {
         parent::setUp();

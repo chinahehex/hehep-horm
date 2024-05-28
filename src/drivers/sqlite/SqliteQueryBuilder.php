@@ -17,18 +17,18 @@ class SqliteQueryBuilder extends SqlQueryBuilder
 	/**
 	 * 字段和表名处理
 	 * @access protected
-	 * @param string $key
+	 * @param string $column_name
 	 * @return string
 	 */
-	protected function parseColumnName($key  = '')
+    public function formatColumnName(Query $query,$column_name = '')
     {
         //todo 判断表别名
-		$key = trim($key);
-		if (!preg_match('/[,\'\"\*\(\)`.\s]/',$key)) {
-			$key = '`'.$key.'`';
+        $column_name = trim($column_name);
+		if (!preg_match('/[,\'\"\*\(\)`.\s]/',$column_name)) {
+            $column_name = '`'.$column_name.'`';
 		}
 
-		return $key;
+		return $column_name;
 	}
 
     /**
@@ -56,9 +56,9 @@ class SqliteQueryBuilder extends SqlQueryBuilder
             foreach ($data as $columnName=>$columnValue){
                 if (is_array($columnValue)) {
                     $operator = $columnValue[0];
-                    $value[] = $this->callExpressionMethod($operator,$columnName,$columnValue[1]);
+                    $value[] = $this->callExpressionMethod($query,$operator,$columnName,$columnValue[1]);
                 } else {
-                    $value[] = $this->buildColumnValue($columnName,$columnValue);
+                    $value[] = $this->buildColumnValue($query,$columnName,$columnValue);
                 }
             }
 
@@ -67,8 +67,8 @@ class SqliteQueryBuilder extends SqlQueryBuilder
 
         $replace = $query->getReplace() ? true : false;
 
-        $sql   =  ($replace?'REPLACE':'INSERT').' INTO ' . $this->parseTable($query->getTable())
-            . ' ('.implode(',', $fields).') VALUES '.implode(',',$values);
+        $sql   =  ($replace?'REPLACE':'INSERT').' INTO ' . $this->parseTable($query,$query->getTable())
+            . ' ('.implode(',', array_map(function($field)use($query){return $this->parseColumnName($query,$field);},$fields)).') VALUES '.implode(',',$values);
 
         return $sql;
     }
@@ -87,13 +87,13 @@ class SqliteQueryBuilder extends SqlQueryBuilder
         $sql = str_replace(
             ['%TABLE%', '%SET%', '%JOIN%', '%WHERE%', '%ORDER%', '%LIMIT%', '%LOCK%'],
             [
-                $this->parseTable($query->getTable()),
-                $this->parseAlias($query->getAlias()),
-                $this->parseSet($query->getData()),
-                $this->parseWhere($query->getWhere()),
-                $this->parseOrder($query->getOrder()),
+                $this->parseTable($query,$query->getTable()),
+                $this->parseAlias($query,$query->getAlias()),
+                $this->parseSet($query,$query->getData()),
+                $this->parseWhere($query,$query->getWhere()),
+                $this->parseOrder($query,$query->getOrder()),
                 //$this->parseLimit($query->getLimit()),
-                $this->parseLock($query->getLock()),
+                $this->parseLock($query,$query->getLock()),
             ], $this->updateSql);
 
         return $sql;
@@ -104,12 +104,12 @@ class SqliteQueryBuilder extends SqlQueryBuilder
         $sql = str_replace(
             ['%TABLE%', '%USING%', '%JOIN%', '%WHERE%', '%ORDER%', '%LIMIT%', '%LOCK%'],
             [
-                $this->parseTable($query->getTable()),
-                $this->parseAlias($query->getAlias()),
-                $this->parseWhere($query->getWhere()),
-                $this->parseOrder($query->getOrder()),
+                $this->parseTable($query,$query->getTable()),
+                $this->parseAlias($query,$query->getAlias()),
+                $this->parseWhere($query,$query->getWhere()),
+                $this->parseOrder($query,$query->getOrder()),
                 //$this->parseLimit($query->getLimit()),
-                $this->parseLock($query->getLock()),
+                $this->parseLock($query,$query->getLock()),
             ], $this->deleteSql);
 
         return $sql;

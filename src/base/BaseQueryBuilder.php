@@ -153,9 +153,35 @@ class BaseQueryBuilder
      * @param string $key
      * @return string
      */
-    protected function parseColumnName($key = '')
+    public function formatColumnName(Query $query,$column_name = '')
     {
-        return $key;
+        return $column_name;
+    }
+
+    /**
+     * 字段和表名处理
+     * @access protected
+     * @param string $column_name
+     * @return string
+     */
+    public function parseColumnName(Query $query,$column_name  = '')
+    {
+        if (substr($column_name,0,2) == '#.') {
+            $table_alias = $query->getAlias();
+            if (!empty($table_alias)) {
+                list($tb_alias,$col_name) = explode('.',$column_name);
+                return $this->formatColumnName($query,$table_alias) . '.'. $this->formatColumnName($query,$col_name);
+            } else {
+                return str_replace('#.','',$column_name);
+            }
+        } else {
+            if (strpos($column_name,'.') !== false) {
+                list($table_alias,$col_name) = explode('.',$column_name);
+                return $this->formatColumnName($query,$table_alias).'.' . $this->formatColumnName($query,$col_name);
+            } else {
+                return $this->formatColumnName($query,$column_name);
+            }
+        }
     }
 
     /**
@@ -239,14 +265,14 @@ class BaseQueryBuilder
      * @param string $columnValue 绑定参数名值
      * @return string
      */
-    protected function buildColumnValue($columnName,$columnValue)
+    protected function buildColumnValue(Query $query,$columnName,$columnValue)
     {
         if ($this->usebind) {
             if (0 !== strpos($columnValue,':')) {//判断第一字符是否为":",
                 $columnValue = ':'.$this->bindParam($columnName,$columnValue);
             }
         } else {
-            $columnValue = $this->parseColumnValue($columnValue);
+            $columnValue = $this->parseColumnValue($query,$columnValue);
         }
 
         return $columnValue;
@@ -261,10 +287,11 @@ class BaseQueryBuilder
      * @param mixed $value 字段值
      * @return string
      */
-    protected function parseColumnValue($value = '')
+    protected function parseColumnValue(Query $query,$value = '')
     {
         return  $value;
     }
+
 
     /**
      * 参数绑定
@@ -279,6 +306,7 @@ class BaseQueryBuilder
     protected function bindParam($name = '',$value = '')
     {
 
+        $name = str_replace("#",'',$name);
         $name = str_replace(".",'_',$name);
         $name = 'sys_' . $name;
         if (!isset($this->bindName[$name])) {
@@ -324,7 +352,7 @@ class BaseQueryBuilder
      * @param string $value 字段值
      * @return string
      */
-    public function callExpressionMethod($expression = '',$column = '',$value = '')
+    public function callExpressionMethod(Query $query,$expression = '',$column = '',$value = '')
     {
         $method = $this->getExpressionMethod($expression);
 
@@ -332,7 +360,7 @@ class BaseQueryBuilder
             return "";
         }
 
-        return call_user_func_array([$this, $method] ,[$expression, [$column,$value]]);
+        return call_user_func_array([$this, $method] ,[$query,$expression, [$column,$value]]);
     }
 
 
@@ -364,25 +392,24 @@ class BaseQueryBuilder
      * @param string|Query $table 表名
      * @return string 表名，多个表名逗号隔开
      */
-    protected function parseTable($table = '')
+    protected function parseTable(Query $query,$table = '')
     {
         if ($table instanceof Query) {
-            $buildSql = '(' . $this->buildQueryRawCommand($table) . ')';
+            $table_sql = '(' . $this->buildQueryRawCommand($table) . ')';
         } else {
             if (is_array($table)) {
                 list($tableName,$tableAlias) = $table;
                 // 普通字符串
                 $table = $this->getTableName($tableName);
-                $table = $table . ' AS ' . $tableAlias;
+                $table_sql = $this->parseColumnName($query,$table) . ' AS ' . $this->parseColumnName($query,$tableAlias);
             } else {
                 // 普通字符串
                 $table = $this->getTableName($table);
+                $table_sql = $this->parseColumnName($query,$table);
             }
-
-            $buildSql = $this->parseColumnName($table);
         }
 
-        return $buildSql;
+        return $table_sql;
     }
 
 
@@ -390,7 +417,7 @@ class BaseQueryBuilder
      * 获取真实表名
      *<B>说明：</B>
      *<pre>
-     *  主要给表加前缀
+     *  主要功能给表加前缀
      *</pre>
      * @param string $table  表名
      * @param string $prefix  表前缀
@@ -429,7 +456,7 @@ class BaseQueryBuilder
      * 替换SQL
      *<B>说明：</B>
      *<pre>
-     *  1、替换{}大括号内的表名加上前缀
+     *  1、替换{{}},[[]]大括号内的表名加上前缀
      *</pre>
      * @param string $sql
      * @return string

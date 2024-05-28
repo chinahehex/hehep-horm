@@ -1,11 +1,14 @@
 <?php
 namespace horm\tests\units\sqlite;
 
-use horm\tests\units\ShardDbTableTest;
 
 // 分表
+use horm\tests\units\mysql\ShardDbTableTest;
+
 class SqliteShardDbTableTest extends ShardDbTableTest
 {
+    protected static $db_driver = 'sqlite';
+
     protected function setUp()
     {
         $this->hdbsession = static::getDbsession();
@@ -28,6 +31,11 @@ class SqliteShardDbTableTest extends ShardDbTableTest
     protected function tearDown()
     {
         static::clearDb();
+    }
+
+    public function testAdd()
+    {
+        parent::testAdd();
     }
 
 

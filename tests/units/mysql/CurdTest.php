@@ -1,11 +1,12 @@
 <?php
-namespace horm\tests\units;
+namespace horm\tests\units\mysql;
 use horm\QueryTable;
 use horm\tests\common\AdminUserEntity;
 use horm\tests\TestCase;
 
 class CurdTest extends TestCase
 {
+    protected static $db_driver = 'mysql';
     protected function setUp()
     {
         parent::setUp();
@@ -14,7 +15,6 @@ class CurdTest extends TestCase
 
     protected function tearDown()
     {
-        parent::tearDown();
         static::clearDb();
     }
 
@@ -324,8 +324,14 @@ class CurdTest extends TestCase
         }],false)->fetchAll();
 
         $this->assertTrue(count($users) == 3);
+    }
 
-
+    public function testAlias()
+    {
+        $users = AdminUserEntity::setWhere(['#.id'=>[1,2,3,4]])->setAlias('adu')->setWith('role',true)->fetchAll();
+        foreach ($users as $user) {
+            $this->assertTrue(isset($user['role']['roleName']));
+        }
     }
 
     public function testPolymerization()
@@ -348,6 +354,9 @@ class CurdTest extends TestCase
 
         $sum = AdminUserEntity::querySum('id');
         $this->assertTrue($sum == 10);
+
+        $sum = AdminUserEntity::setWhere(['status'=>1])->querySum('id');
+        $this->assertTrue($sum == 3);
     }
 
     // 分组查询
@@ -405,6 +414,12 @@ class CurdTest extends TestCase
         $user = AdminUserEntity::setWhere(['username'=>'hehe6'])->fetchOne();
         $this->assertTrue(empty($user));
 
+    }
+
+    public function testPage()
+    {
+        $users = AdminUserEntity::asArray()->setWhere(['id'=>[1,2,3,4]])->setLimit(2)->setOffset(1)->fetchAll();
+        $this->assertTrue(count($users) == 2);
     }
 
 

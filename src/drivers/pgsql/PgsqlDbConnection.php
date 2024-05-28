@@ -72,9 +72,13 @@ class PgsqlDbConnection extends DbConnection
             $dsn .= ';port=' . $this->getConfig("port");
         }
 
+        if (!empty($this->config['charset'])) {
+            $dsn  .= ";options='--client_encoding=".$this->config['charset']."'";
+        }
+
         return $dsn;
     }
 
 
-	
+
 }

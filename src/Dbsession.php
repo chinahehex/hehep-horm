@@ -408,15 +408,16 @@ class Dbsession
      * 如果自增id
      * 如果开启自动生成序号，则返回最后产生的序号
      *</pre>
-     * @return string 最后插入sql自增id
+	 * @param string $sequence 序列
+     * @return mixed 最后插入sql自增id
      */
-    public function getLastId()
+    public function getLastId($sequence = '')
     {
     	if ($this->dbconn === null) {
     		return null;
 		}
 
-        return $this->dbconn->getLastInsertID();
+        return $this->dbconn->getLastInsertID($sequence);
     }
 
 	/**

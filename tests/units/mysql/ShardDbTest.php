@@ -1,5 +1,5 @@
 <?php
-namespace horm\tests\units;
+namespace horm\tests\units\mysql;
 
 use horm\tests\common\AdminUserinfoShardDbEntity;
 use horm\tests\TestCase;
@@ -7,6 +7,8 @@ use horm\tests\TestCase;
 // 分表
 class ShardDbTest extends TestCase
 {
+    protected static $db_driver = 'mysql';
+
     protected function setUp()
     {
         static::makeDb('hehe','hehe_test','hehe.sql');
@@ -14,9 +16,9 @@ class ShardDbTest extends TestCase
         static::makeDb('hehe_1','hehe_test1','');
         static::makeDb('hehe_2','hehe_test2','');
 
-        static::createShardTable('hehe_test0',0,'shard_db.sql');
-        static::createShardTable('hehe_test1',1,'shard_db.sql');
-        static::createShardTable('hehe_test2',2,'shard_db.sql');
+        static::createMysqlShardTable('hehe_test0','shard_db.sql',"0");
+        static::createMysqlShardTable('hehe_test1','shard_db.sql',"1");
+        static::createMysqlShardTable('hehe_test2','shard_db.sql',"2");
     }
 
     protected function tearDown()

@@ -1,12 +1,12 @@
 <?php
 namespace horm\tests\units\sqlite;
 
-
-
-use horm\tests\units\CurdTest;
+use horm\tests\units\mysql\CurdTest;
 
 class SqliteCurdTest extends CurdTest
 {
+    protected static $db_driver = 'sqlite';
+
     protected function setUp()
     {
         $this->hdbsession = static::getDbsession();
@@ -15,8 +15,12 @@ class SqliteCurdTest extends CurdTest
 
     protected function tearDown()
     {
-        parent::tearDown();
         static::clearDb();
+    }
+
+    public function testAdd()
+    {
+        parent::testAdd();
     }
 
 

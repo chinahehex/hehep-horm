@@ -98,17 +98,13 @@ class MongodbDbConnection extends DbConnection
     {
         if (is_null($this->conn)) {
             try {
-
                 $manager = new \MongoDB\Driver\Manager($this->parseDsn($this->config));
                 $this->conn = $manager;
-
                 return $this->conn;
-
             } catch (\Exception $e) {
                 throw new Exception($e->getMessage());
             }
         } else {
-
             return $this->conn;
         }
     }
@@ -125,13 +121,6 @@ class MongodbDbConnection extends DbConnection
         if (is_null($this->conn)) {
             $this->conn = $this->connect();
         }
-    }
-
-    protected function getCollection($collection)
-    {
-        $collection = $this->conn->selectCollection($this->config['database'], $collection);
-
-        return $collection;
     }
 
     /**
@@ -208,6 +197,19 @@ class MongodbDbConnection extends DbConnection
 
         $bulk = new \MongoDB\Driver\BulkWrite;
         $bulk->insert($command->getOptions('data'));
+        $writeConcern = new \MongoDB\Driver\WriteConcern(\MongoDB\Driver\WriteConcern::MAJORITY, 1000);
+        $insertOneResult = $this->conn->executeBulkWrite($this->buildNamespace($command->getOptions('table')), $bulk, $writeConcern);
+
+        return $insertOneResult->getInsertedCount();
+    }
+
+    public function insertAll($command = [])
+    {
+        $bulk = new \MongoDB\Driver\BulkWrite();
+        foreach ($command->getOptions('data') as $row) {
+            $bulk->insert($row);
+        }
+
         $writeConcern = new \MongoDB\Driver\WriteConcern(\MongoDB\Driver\WriteConcern::MAJORITY, 1000);
         $insertOneResult = $this->conn->executeBulkWrite($this->buildNamespace($command->getOptions('table')), $bulk, $writeConcern);
 
@@ -301,16 +303,11 @@ class MongodbDbConnection extends DbConnection
         $command = new \MongoDB\Driver\Command([
             'aggregate' => $command->getOptions('table'),
             'pipeline' => $command->getOptions('pipelines'),
+            'cursor' => (object)[]
         ]);
 
         $cursor = $this->conn->executeCommand($this->config['database'], $command);
-        $result = $this->cursorToArray($cursor);
-
-        if (isset($result[0]['result'])) {
-            return $result[0]['result'];
-        } else {
-            return [];
-        }
+        return $this->cursorToArray($cursor);
     }
 
     /**
@@ -327,17 +324,14 @@ class MongodbDbConnection extends DbConnection
 
         $mongoCommand = new \MongoDB\Driver\Command([
             'aggregate' => $command->getOptions('table'),
-            'pipeline' => $command->getOptions('pipelines')
+            'pipeline' => $command->getOptions('pipelines'),
+            'cursor' => (object)[]
         ]);
 
         $cursor = $this->conn->executeCommand($this->config['database'], $mongoCommand);
-        $result = $this->cursorToArray($cursor);
+        $datas = $this->cursorToArray($cursor);
 
-        if (isset($result[0]['result'])) {
-            return $result[0]['result'];
-        } else {
-            return [];
-        }
+        return $datas;
     }
 
     /**
@@ -384,18 +378,61 @@ class MongodbDbConnection extends DbConnection
 
     public function beginTransaction()
     {
+        $this->initConnect();
         $this->tranSession = $this->conn->startSession();
         $this->tranSession->startTransaction();
+
+        return true;
     }
 
     public function commit()
     {
-        $this->tranSession->commitTransaction();
+        if (!is_null($this->tranSession)) {
+            $this->tranSession->commitTransaction();
+            $this->tranSession->endSession();
+            $this->tranSession = null;
+        }
+
+        return true;
     }
 
     public function rollback()
     {
-        $this->tranSession->abortTransaction();
+        if (!is_null($this->tranSession)) {
+            $this->tranSession->abortTransaction();
+            $this->tranSession->endSession();
+            $this->tranSession = null;
+        }
+
+        return true;
+    }
+
+    /**
+     * 析构方法
+     *<B>说明：</B>
+     *<pre>
+     * 	释放查询资源
+     * 	关闭连接
+     *</pre>
+     * @return string
+     */
+    public function __destruct()
+    {
+        // 关闭连接
+        $this->close();
+    }
+
+    /**
+     * 关闭数据库
+     *<B>说明：</B>
+     *<pre>
+     *  略
+     *</pre>
+     * @return void
+     */
+    public function close()
+    {
+        $this->conn = null;
     }
 
 }

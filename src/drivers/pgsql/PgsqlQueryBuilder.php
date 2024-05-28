@@ -13,7 +13,24 @@ use horm\builders\SqlQueryBuilder;
  */
 class PgsqlQueryBuilder extends SqlQueryBuilder
 {
-    protected function parseLock($lock = false)
+    /**
+     * 字段和表名处理
+     * @access protected
+     * @param string $column_name
+     * @return string
+     */
+    public function formatColumnName(Query $query,$column_name = '')
+    {
+        //todo 判断表别名
+        $column_name = trim($column_name);
+        if (!preg_match('/[,\'\"\*\(\)`.\s]/',$column_name)) {
+            $column_name = '"'.$column_name.'"';
+        }
+
+        return $column_name;
+    }
+    
+    protected function parseLock(Query $query,$lock = false)
     {
         if (!$lock) {
             return '';
@@ -21,6 +38,19 @@ class PgsqlQueryBuilder extends SqlQueryBuilder
 
         return '';
     }
+
+    protected function parseLimit(Query $query,$length = null,$offset = null)
+    {
+        if (isset($offset)) {
+            $limitSql = $length . ' OFFSET ' . $offset;
+        } else {
+            $limitSql = $length;
+        }
+
+        return !empty($limitSql)?   ' LIMIT ' . $limitSql . ' ' : '';
+    }
+
+
 
     /**
      * 生成 update sql
@@ -36,31 +66,74 @@ class PgsqlQueryBuilder extends SqlQueryBuilder
         $sql = str_replace(
             ['%TABLE%', '%SET%', '%JOIN%', '%WHERE%', '%ORDER%', '%LIMIT%', '%LOCK%'],
             [
-                $this->parseTable($query->getTable()),
-                $this->parseAlias($query->getAlias()),
-                $this->parseSet($query->getData()),
-                $this->parseWhere($query->getWhere()),
-                $this->parseOrder($query->getOrder()),
-                $this->parseLock($query->getLock()),
+                $this->parseTable($query,$query->getTable()),
+                $this->parseAlias($query,$query->getAlias()),
+                $this->parseSet($query,$query->getData()),
+                $this->parseWhere($query,$query->getWhere()),
+                $this->parseOrder($query,$query->getOrder()),
+                $this->parseLock($query,$query->getLock()),
             ], $this->updateSql);
 
         return $sql;
     }
 
-	/**
-	 * 字段和表名处理
-	 * @access protected
-	 * @param string $key
-	 * @return string
-	 */
-	protected function parseColumnName($key  = '')
+    public function delete(Query $query)
     {
-        //todo 判断表别名
-		$key = trim($key);
-		if (!preg_match('/[,\'\"\*\(\)`.\s]/',$key)) {
-			$key = ''.$key.'';
-		}
+        $sql = str_replace(
+            ['%TABLE%', '%USING%', '%JOIN%', '%WHERE%', '%ORDER%', '%LIMIT%', '%LOCK%'],
+            [
+                $this->parseTable($query,$query->getTable()),
+                $this->parseAlias($query,$query->getAlias()),
+                $this->parseWhere($query,$query->getWhere()),
+                $this->parseOrder($query,$query->getOrder()),
+                //$this->parseLimit($query->getLimit()),
+                $this->parseLock($query,$query->getLock()),
+            ], $this->deleteSql);
 
-		return $key;
-	}
+        return $sql;
+    }
+
+    /**
+     * 批量插入记录
+     * @param Query $query 数据
+     * true 启用,false 禁用
+     * @return bool|int|void
+     */
+    public function insertAll(Query $query)
+    {
+        //批量插入数据，第一个参数必须是数组
+        $datas = $query->getData();
+
+        if (!is_array($datas[0])) {
+            return false;
+        }
+
+        //读取字段名数组
+        $fields = array_keys($datas[0]);
+        //格式化字段名，每个$fields 元素都调用parseKey 方法
+        //array_walk($fields, array($this, 'parseKey'));
+        $values  =  array();
+        foreach ($datas as $data) {
+            $value   =  [];
+            foreach ($data as $columnName=>$columnValue){
+                if (is_array($columnValue)) {
+                    $operator = $columnValue[0];
+                    $value[] = $this->callExpressionMethod($query,$operator,$columnName,$columnValue[1]);
+                } else {
+                    $value[] = $this->buildColumnValue($query,$columnName,$columnValue);
+                }
+            }
+
+            $values[]    = '('.implode(',', $value).')';
+        }
+
+        $replace = $query->getReplace() ? true : false;
+
+        $sql   =  ($replace?'REPLACE':'INSERT').' INTO ' . $this->parseTable($query,$query->getTable())
+            . ' ('.implode(',', array_map(function($field)use($query){return $this->parseColumnName($query,$field);},$fields)).') VALUES '.implode(',',$values);
+
+        return $sql;
+    }
+
+
 }

@@ -54,7 +54,24 @@ class OciQueryBuilder extends SqlQueryBuilder
      */
 	protected $deleteSql = 'DELETE FROM %TABLE% %USING% %JOIN% %WHERE% %ORDER% %LOCK%';
 
-	protected function parseLock($lock = false)
+    /**
+     * 字段和表名处理
+     * @access protected
+     * @param string $key
+     * @return string
+     */
+    public function formatColumnName(Query $query,$column_name = '')
+    {
+        //todo 判断表别名
+        $column_name = trim($column_name);
+        if (!preg_match('/[,\'\"\*\(\)`.\s]/',$column_name)) {
+            $column_name = ''.$column_name.'';
+        }
+
+        return $column_name;
+    }
+
+	protected function parseLock(Query $query,$lock = false)
     {
         if (!$lock) {
             return '';
@@ -62,7 +79,9 @@ class OciQueryBuilder extends SqlQueryBuilder
 
         return '';
     }
-	
+
+
+
 	    /**
      * 替换SQL语句中表达式
      *<B>说明：</B>
@@ -73,7 +92,7 @@ class OciQueryBuilder extends SqlQueryBuilder
      * @param Query $query sql参数
      * @return string
      */
-    public function parseSql($sql,$query)
+    public function parseSql(Query $query,$sql)
     {
 		$offset = $query->getOffset();
 		$limit = $query->getLimit();
@@ -90,99 +109,64 @@ class OciQueryBuilder extends SqlQueryBuilder
 		if (isset($limit) || isset($offset)) {
 			$query->setWhere($limitWhere);
 		}
-		
+
 
         $sql   = str_replace(
             ['%TABLE%','%DISTINCT%','%FIELD%','%ALIAS%','%JOIN%','%WHERE%','%GROUP%','%HAVING%','%ORDER%','%UNION%','%COMMENT%'],
             [
-                $this->parseTable($query->getTable()),
-                $this->parseDistinct($query->getDistinct()),
-                $this->parseField($query,$query->getField()),
-                $this->parseAlias($query->getAlias()),
-                $this->parseJoin($query->getJoin(),$query->getSeq()),
-                $this->parseWhere($query->getWhere()),
-                $this->parseGroup($query->getGroup()),
-                $this->parseHaving($query->getHaving()),
-                $this->parseOrder($query->getOrder()),
-                $this->parseUnion($query->getUnion()),
+                $this->parseTable($query,$query->getTable()),
+                $this->parseDistinct($query,$query->getDistinct()),
+                $this->parseField($query,$query,$query->getField()),
+                $this->parseAlias($query,$query->getAlias()),
+                $this->parseJoin($query,$query->getJoin()),
+                $this->parseWhere($query,$query->getWhere()),
+                $this->parseGroup($query,$query->getGroup()),
+                $this->parseHaving($query,$query->getHaving()),
+                $this->parseOrder($query,$query->getOrder()),
+                $this->parseUnion($query,$query->getUnion()),
 			],$sql);
-			
-			
+
+
 
         return $sql;
 	}
 
 
-	public function delete($query)
+	public function delete(Query $query)
     {
         $sql = str_replace(
             ['%TABLE%', '%USING%', '%JOIN%', '%WHERE%', '%ORDER%','%LOCK%'],
             [
-                $this->parseTable($query->getTable()),
-                $this->parseAlias($query->getAlias()),
-                $this->parseWhere($query->getWhere()),
-                $this->parseOrder($query->getOrder()),
-                $this->parseLock($query->getLock()),
+                $this->parseTable($query,$query->getTable()),
+                $this->parseAlias($query,$query->getAlias()),
+                $this->parseWhere($query,$query->getWhere()),
+                $this->parseOrder($query,$query->getOrder()),
+                $this->parseLock($query,$query->getLock()),
             ], $this->deleteSql);
 
         return $sql;
 	}
-	
-	public function update($query)
+
+	public function update(Query $query)
     {
 
         $sql = str_replace(
             ['%TABLE%', '%SET%', '%JOIN%', '%WHERE%', '%ORDER%', '%LOCK%'],
             [
-                $this->parseTable($query->getTable()),
-                $this->parseAlias($query->getAlias()),
-                $this->parseSet($query->getData()),
-                $this->parseWhere($query->getWhere()),
-                $this->parseOrder($query->getOrder()),
-                $this->parseLock($query->getLock()),
+                $this->parseTable($query,$query->getTable()),
+                $this->parseAlias($query,$query->getAlias()),
+                $this->parseSet($query,$query->getData()),
+                $this->parseWhere($query,$query->getWhere()),
+                $this->parseOrder($query,$query->getOrder()),
+                $this->parseLock($query,$query->getLock()),
             ], $this->updateSql);
 
         return $sql;
     }
-	
-	/**
-     * 构建 between where 条件 sql
-     *<B>说明：</B>
-     *<pre>
-     * 略
-     *</pre>
-     * @param string $operator 操作符
-     * @param array $condition 字段名，字段值 [$column,$values]
-     * @return string
-     */
-    protected function bulidBetweenWhere($operator,$condition = [])
-    {
-        list($columnName, $values) = $condition;
-        $betweenValues = [];
-        foreach ($values as $value) {
-            $betweenValues[] = $this->buildColumnValue($columnName,$value);
-        }
 
-        $columnName = $this->parseColumnName($columnName);
-		$buildSql = " {$columnName} >= {$betweenValues[0]} AND {$columnName} <= {$betweenValues[1]}";
-		
-        return $buildSql;
-    }
 
-	/**
-	 * 字段和表名处理
-	 * @access protected
-	 * @param string $key
-	 * @return string
-	 */
-	protected function parseColumnName($key  = '')
-    {
-        //todo 判断表别名
-		$key = trim($key);
-		if (!preg_match('/[,\'\"\*\(\)`.\s]/',$key)) {
-			$key = ''.$key.'';
-		}
 
-		return $key;
-	}
+
+
+
 }

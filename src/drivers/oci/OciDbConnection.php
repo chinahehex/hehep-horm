@@ -76,6 +76,24 @@ class OciDbConnection extends DbConnection
         return $dsn;
     }
 
+    /**
+     * 获取最近插入的ID
+     *<B>说明：</B>
+     *<pre>
+     *  略
+     *</pre>
+     * @return string|int
+     */
+    public function getLastInsertID($sequence = '')
+    {
+        if(!empty($sequence)) {
+            $pdoStatement    = $this->conn->query("select {$sequence}.currval as id from dual");
+            $result = $pdoStatement->fetchColumn();
+        }
 
-	
+        return $result ?? null;
+    }
+
+
+
 }

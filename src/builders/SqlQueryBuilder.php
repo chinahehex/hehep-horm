@@ -66,12 +66,12 @@ class SqlQueryBuilder extends BaseQueryBuilder
         $values = $fields = [];
         $data = $query->getData();
         foreach ($data as $columnName=>$columnValue) {
-            $fields[] = $this->parseColumnName($columnName);
+            $fields[] = $this->parseColumnName($query,$columnName);
             if (is_array($columnValue)) {
                 $operator = $columnValue[0];
-                $values[] = $this->callExpressionMethod($operator,$columnName,$columnValue[1]);
+                $values[] = $this->callExpressionMethod($query,$operator,$columnName,$columnValue[1]);
             } else {
-                $values[] = $this->buildColumnValue($columnName,$columnValue);
+                $values[] = $this->buildColumnValue($query,$columnName,$columnValue);
             }
         }
 
@@ -80,12 +80,12 @@ class SqlQueryBuilder extends BaseQueryBuilder
             ['%INSERT%', '%TABLE%', '%FIELD%', '%DATA%'],
             [
                 $replace ? 'REPLACE' : 'INSERT',
-                $this->parseTable($query->getTable()),
-                implode(' , ', $fields),
+                $this->parseTable($query,$query->getTable()),
+                implode(' , ', array_map(function($field) use($query){return $this->parseColumnName($query,$field);},$fields)),
                 implode(' , ', $values),
             ], $this->insertSql);
 
-        $sql .= $this->parseLock($query->getLock());
+        $sql .= $this->parseLock($query,$query->getLock());
 
         return $sql;
     }
@@ -126,13 +126,13 @@ class SqlQueryBuilder extends BaseQueryBuilder
         $sql = str_replace(
             ['%TABLE%', '%SET%', '%JOIN%', '%WHERE%', '%ORDER%', '%LIMIT%', '%LOCK%'],
             [
-                $this->parseTable($query->getTable()),
-                $this->parseAlias($query->getAlias()),
-                $this->parseSet($query->getData()),
-                $this->parseWhere($query->getWhere()),
-                $this->parseOrder($query->getOrder()),
-                $this->parseLimit($query->getLimit()),
-                $this->parseLock($query->getLock()),
+                $this->parseTable($query,$query->getTable()),
+                $this->parseAlias($query,$query->getAlias()),
+                $this->parseSet($query,$query->getData()),
+                $this->parseWhere($query,$query->getWhere()),
+                $this->parseOrder($query,$query->getOrder()),
+                $this->parseLimit($query,$query->getLimit()),
+                $this->parseLock($query,$query->getLock()),
             ], $this->updateSql);
 
         return $sql;
@@ -152,12 +152,12 @@ class SqlQueryBuilder extends BaseQueryBuilder
         $sql = str_replace(
             ['%TABLE%', '%USING%', '%JOIN%', '%WHERE%', '%ORDER%', '%LIMIT%', '%LOCK%'],
             [
-                $this->parseTable($query->getTable()),
-                $this->parseAlias($query->getAlias()),
-                $this->parseWhere($query->getWhere()),
-                $this->parseOrder($query->getOrder()),
-                $this->parseLimit($query->getLimit()),
-                $this->parseLock($query->getLock()),
+                $this->parseTable($query,$query->getTable()),
+                $this->parseAlias($query,$query->getAlias()),
+                $this->parseWhere($query,$query->getWhere()),
+                $this->parseOrder($query,$query->getOrder()),
+                $this->parseLimit($query,$query->getLimit()),
+                $this->parseLock($query,$query->getLock()),
             ], $this->deleteSql);
 
         return $sql;
@@ -190,7 +190,7 @@ class SqlQueryBuilder extends BaseQueryBuilder
      * @param string $method 字段方法，或者空
      * @return string
      */
-    public function queryScalar($query,$method)
+    public function queryScalar(Query $query,$method)
     {
         $methods = ['count'=>'count','min'=>'min','max'=>'max','avg'=>'avg','sum'=>'sum'];
         if (!empty($method) && isset($methods[$method])) {
@@ -214,10 +214,10 @@ class SqlQueryBuilder extends BaseQueryBuilder
      * @param Query $query sql解析参数
      * @return string sql
      */
-    public function buildSelectSql($query)
+    public function buildSelectSql(Query $query)
     {
-        $sql  = $this->parseSql($this->selectSql,$query);
-        $sql .= $this->parseLock($query->getLock());
+        $sql  = $this->parseSql($query,$this->selectSql);
+        $sql .= $this->parseLock($query,$query->getLock());
         $this->params = array_merge($this->params,$query->getParams());
 
         return $sql;
@@ -229,26 +229,26 @@ class SqlQueryBuilder extends BaseQueryBuilder
      *<pre>
      *  略
      *</pre>
+     * @param Query $query Query 对象
      * @param string $sql sql语句
-     * @param Query $query sql参数
      * @return string
      */
-    public function parseSql($sql,$query)
+    public function parseSql(Query $query,$sql)
     {
         $sql   = str_replace(
             ['%TABLE%','%DISTINCT%','%FIELD%','%ALIAS%','%JOIN%','%WHERE%','%GROUP%','%HAVING%','%ORDER%','%LIMIT%','%UNION%','%COMMENT%'],
             [
-                $this->parseTable($query->getTable()),
-                $this->parseDistinct($query->getDistinct()),
+                $this->parseTable($query,$query->getTable()),
+                $this->parseDistinct($query,$query->getDistinct()),
                 $this->parseField($query,$query->getField()),
-                $this->parseAlias($query->getAlias()),
-                $this->parseJoin($query->getJoin(),$query->getSeq()),
-                $this->parseWhere($query->getWhere()),
-                $this->parseGroup($query->getGroup()),
-                $this->parseHaving($query->getHaving()),
-                $this->parseOrder($query->getOrder()),
-                $this->parseLimit($query->getLimit(),$query->getOffset()),
-                $this->parseUnion($query->getUnion()),
+                $this->parseAlias($query,$query->getAlias()),
+                $this->parseJoin($query,$query->getJoin()),
+                $this->parseWhere($query,$query->getWhere()),
+                $this->parseGroup($query,$query->getGroup()),
+                $this->parseHaving($query,$query->getHaving()),
+                $this->parseOrder($query,$query->getOrder()),
+                $this->parseLimit($query,$query->getLimit(),$query->getOffset()),
+                $this->parseUnion($query,$query->getUnion()),
             ],$sql);
 
         return $sql;
@@ -260,10 +260,11 @@ class SqlQueryBuilder extends BaseQueryBuilder
      *<pre>
      *  略
      *</pre>
+     * @param Query $query
      * @param boolean $lock
      * @return string
      */
-    protected function parseLock($lock = false)
+    protected function parseLock(Query $query,$lock = false)
     {
         if (!$lock) {
             return '';
@@ -278,18 +279,19 @@ class SqlQueryBuilder extends BaseQueryBuilder
      *<pre>
      *  略
      *</pre>
+     * @param Query $query Query对象
      * @param array $data 数据(一维数组)
      * @return string
      */
-    protected function parseSet($data = [])
+    protected function parseSet(Query $query,$data = [])
     {
         $setSqls = [];
         foreach ($data as $column => $value) {
             if (is_array($value)) {
                 $operator = $value[0];
-                $setSqls[] = $this->callExpressionMethod($operator,$column,$value[1]);
+                $setSqls[] = $this->callExpressionMethod($query,$operator,$column,$value[1]);
             } else {
-                $setSqls[] = $this->buildColumnExpression($column,$value);
+                $setSqls[] = $this->buildColumnExpression($query,$column,$value);
             }
         }
 
@@ -307,28 +309,13 @@ class SqlQueryBuilder extends BaseQueryBuilder
      * @param string $operator 操作符
      * @return string
      */
-    protected function buildColumnExpression($columnName = '',$columnValue = '',$operator = "=")
+    protected function buildColumnExpression(Query $query,$columnName = '',$columnValue = '',$operator = "=")
     {
-        $columnValue = $this->buildColumnValue($columnName,$columnValue);
-        $columnName = $this->parseColumnName($columnName);
+        $columnValue = $this->buildColumnValue($query,$columnName,$columnValue);
+        $columnName = $this->parseColumnName($query,$columnName);
         $sql = " {$columnName} {$operator} {$columnValue} ";
 
         return $sql;
-    }
-
-
-    /**
-     * 字段名分析
-     *<B>说明：</B>
-     *<pre>
-     *  此方法一般由继承类实现
-     *</pre>
-     * @param string $key
-     * @return string
-     */
-    protected function parseColumnName($key = '')
-    {
-        return $key;
     }
 
     /**
@@ -340,7 +327,7 @@ class SqlQueryBuilder extends BaseQueryBuilder
      * @param mixed $value 字段值
      * @return string
      */
-    protected function parseColumnValue($value = '')
+    protected function parseColumnValue(Query $query,$value = '')
     {
         $columnValueType = gettype($value);
         if ($columnValueType === 'string') {
@@ -373,11 +360,15 @@ class SqlQueryBuilder extends BaseQueryBuilder
      *</pre>
      * @return string
      */
-    protected function parseField($query,$fields = [])
+    protected function parseField(Query $query,$fields = [])
     {
         // 未设置,默认*
-        if (empty($fields)) {
+        if (empty($fields) || $fields == '*') {
             return '*';
+        }
+
+        if ($fields == '#.*') {
+            return str_replace('#',$this->parseColumnName($query,$query->getAlias()),$fields);
         }
 
         if (!is_array($fields)) {
@@ -391,12 +382,13 @@ class SqlQueryBuilder extends BaseQueryBuilder
             if (is_numeric($columnName) && is_array($field)) {
                 $fieldSqls =  array_merge($fieldSqls,$field);
             } else if(is_numeric($columnName)) {// 字段串字段['column1','column2'], 没有别名
-                $fieldSqls[] =  $this->parseColumnName($field);
+                // 判断是否有表别名
+                $fieldSqls[] =  $this->parseColumnName($query,$field);
             } else {
                 if (is_array($field)) {// 别名为字符串
-                    $fieldSqls[] =  $this->callExpressionMethod($field[0],$columnName,$field[1]); ;
+                    $fieldSqls[] =  $this->callExpressionMethod($query,$field[0],$columnName,$field[1]); ;
                 } else {// 别名为数组,表达式
-                    $fieldSqls[] =  $this->parseColumnName($columnName).' AS '.$this->parseColumnName($field);
+                    $fieldSqls[] =  $this->parseColumnName($query,$columnName).' AS '.$this->parseColumnName($query,$field);
                 }
             }
         }
@@ -413,11 +405,11 @@ class SqlQueryBuilder extends BaseQueryBuilder
      * @param string|array $alias
      * @return string
      */
-    protected function parseAlias($alias = '')
+    protected function parseAlias(Query $query,$alias = '')
     {
         $buildSql = '';
         if (!empty($alias)) {
-            $buildSql = ' as ' . $alias;
+            $buildSql = ' as ' . $this->parseColumnName($query,$alias);
         }
 
         return $buildSql;
@@ -434,7 +426,7 @@ class SqlQueryBuilder extends BaseQueryBuilder
      * @param string $sqlKeyword 条件SQL关键词,比如where,having
      * @return string
      */
-    protected function parseWhere($where,$sqlKeyword = 'WHERE')
+    protected function parseWhere(Query $query,$where,$sqlKeyword = 'WHERE')
     {
         if (empty($where)) {
             return '';
@@ -459,7 +451,7 @@ class SqlQueryBuilder extends BaseQueryBuilder
 
             }
 
-            $whereSql = $operator == self::EXP_AND ? $this->bulidXorWhere($where) : $this->bulidXorWhere($where,'OR');
+            $whereSql = $operator == self::EXP_AND ? $this->bulidXorWhere($query,$where) : $this->bulidXorWhere($query,$where,'OR');
         }
 
         if (empty($whereSql)) {
@@ -484,7 +476,7 @@ class SqlQueryBuilder extends BaseQueryBuilder
      * @param array $offset 偏移位置
      * @return string
      */
-    protected function parseLimit($length = null,$offset = null)
+    protected function parseLimit(Query $query,$length = null,$offset = null)
     {
         if (isset($offset)) {
             $limitSql = $offset . ',' . $length;
@@ -505,18 +497,18 @@ class SqlQueryBuilder extends BaseQueryBuilder
      * @param string $seq 分表标识
      * @return string
      */
-    protected function parseJoin($joins = [],$seq = '')
+    protected function parseJoin(Query $query,$joins = [],$seq = '')
     {
         foreach ($joins as $i=>$join) {
             list ($table, $on,$joinType) = $join;
-            $readTable = $this->parseTable($table);
+            $readTable = $this->parseTable($query,$table);
             if (empty($joinType)) {
                 $joinType = ' LEFT JOIN ';
             }
 
             $joins[$i] = " $joinType $readTable";
             if (isset($on)) {
-                $condition =  $this->parseWhere($on,'ON');
+                $condition =  $this->parseWhere($query,$on,'ON');
                 if ($condition !== '') {
                     $joins[$i] .= $condition;
                 }
@@ -546,19 +538,20 @@ class SqlQueryBuilder extends BaseQueryBuilder
      *</pre>
      * @return string
      */
-    protected function parseOrder($order)
+    protected function parseOrder(Query $query,$orders)
     {
-        if (is_array($order)) {
+        $sorts = [];
+        if (is_array($orders)) {
             $array   =  array();
-            foreach ($order as $key=>$value) {
+            foreach ($orders as $key=>$value) {
                 if (is_numeric($key)) {
-                    $array[] =  $this->parseColumnName($value);
+                    $sorts[] =  $this->parseColumnName($query,$value);
                 } else {
-                    $array[] =  $this->parseColumnName($key) . ' '. ($value == SORT_DESC  ? 'desc' : 'asc');
+                    $sorts[] =  $this->parseColumnName($query,$key) . ' '. (($value == SORT_DESC || strtolower($value) == 'desc')  ? 'desc' : 'asc');
                 }
             }
 
-            $order   =  implode(',',$array);
+            $order   =  implode(',',$sorts);
         }
 
         return !empty($order)?  ' ORDER BY ' . $order : '';
@@ -573,7 +566,7 @@ class SqlQueryBuilder extends BaseQueryBuilder
      * @param string|array $group
      * @return string
      */
-    protected function parseGroup($group = [])
+    protected function parseGroup(Query $query,$group = [])
     {
         if (empty($group)) {
             return '';
@@ -595,9 +588,9 @@ class SqlQueryBuilder extends BaseQueryBuilder
      * @param string|array $having
      * @return string
      */
-    protected function parseHaving($having = [])
+    protected function parseHaving(Query $query,$having = [])
     {
-        return  !empty($having) ?  $this->parseWhere($having,'HAVING') : '';
+        return  !empty($having) ?  $this->parseWhere($query,$having,'HAVING') : '';
     }
 
     /**
@@ -609,7 +602,7 @@ class SqlQueryBuilder extends BaseQueryBuilder
      * @param boolean $distinct
      * @return string
      */
-    protected function parseDistinct($distinct = false)
+    protected function parseDistinct(Query $query,$distinct = false)
     {
         return !empty($distinct) ? ' DISTINCT ' : '';
     }
@@ -623,7 +616,7 @@ class SqlQueryBuilder extends BaseQueryBuilder
      * @param array $union
      * @return string
      */
-    protected function parseUnion($union = [])
+    protected function parseUnion(Query $query,$union = [])
     {
         if (empty($union))
             return '';
@@ -653,9 +646,9 @@ class SqlQueryBuilder extends BaseQueryBuilder
      * @param string $xor sql 异或sql关键词 and or
      * @return string
      */
-    protected function bulidXorWhere($condition = [],$xor = "AND")
+    protected function bulidXorWhere(Query $query,$condition = [],$xor = "AND")
     {
-        $build = $this->buildWhere($condition);
+        $build = $this->buildWhere($query,$condition);
         if (!empty($build)) {
             if (count($build) == 1) {
                 $buildSql =  $build[0];
@@ -678,9 +671,9 @@ class SqlQueryBuilder extends BaseQueryBuilder
      * @param array $condition 条件参数
      * @return string
      */
-    protected function bulidAndWhere($condition = [])
+    protected function bulidAndWhere(Query $query,$condition = [])
     {
-        return $this->bulidXorWhere($condition,'AND');
+        return $this->bulidXorWhere($query,$condition,'AND');
     }
 
     /**
@@ -692,9 +685,9 @@ class SqlQueryBuilder extends BaseQueryBuilder
      * @param array $condition 条件参数
      * @return string
      */
-    protected function bulidOrWhere($condition)
+    protected function bulidOrWhere(Query $query,$condition)
     {
-        return $this->bulidXorWhere($condition,'OR');
+        return $this->bulidXorWhere($query,$condition,'OR');
     }
 
     /**
@@ -709,12 +702,12 @@ class SqlQueryBuilder extends BaseQueryBuilder
      * 		['name=:name','userid=:userid']
      *</pre>
      */
-    protected function buildWhere($condition = [])
+    protected function buildWhere(Query $query,$condition = [])
     {
         $conditionSql = [];
 
         foreach ($condition as $column => $value) {
-            $conditionSql[] = $this->parseWhereItem($column,$value);
+            $conditionSql[] = $this->parseWhereItem($query,$column,$value);
         }
 
         return $conditionSql;
@@ -731,14 +724,14 @@ class SqlQueryBuilder extends BaseQueryBuilder
      * @param string|array $value
      * @return string
      */
-    protected function parseWhereItem($column = '',$value = '')
+    protected function parseWhereItem(Query $query,$column = '',$value = '')
     {
         $whereSql = '';
         if (is_string($column)) {// 字段名为非数字
             if ($value instanceof RawExpression) {
-                $whereSql = $this->buidlRawExpression($value,$column);
+                $whereSql = $this->buidlRawExpression($query,$value,$column);
             } else if (!is_array($value)) {// (ps:['username'=>'name'])
-                $whereSql = $this->callExpressionMethod(self::EXP_EQ,$column,$value);
+                $whereSql = $this->callExpressionMethod($query,self::EXP_EQ,$column,$value);
             }else {
                 // 字段值为数组,
                 $comparison = current($value);// 抽取表达式,抽取数组第一个元素['in','value']
@@ -749,25 +742,25 @@ class SqlQueryBuilder extends BaseQueryBuilder
                         array_shift($value);
                         $range_where_sql = [];
                         foreach ($value as $exp=>$val) {
-                            $range_where_sql[] = $this->callExpressionMethod($val[0],$column,$val[1]);
+                            $range_where_sql[] = $this->callExpressionMethod($query,$val[0],$column,$val[1]);
                         }
                         $whereSql = implode(' '.$comparison.' ',$range_where_sql);
                     } else {
                         // （ps:['userId'=>['in',[1,2,3,4]]]),ps:['userId'=>['eq','1'])
                         if ($comparison instanceof RawComparison) {
-                            $whereSql = $this->callExpressionMethod($comparison->getComparison(),$column,$value[1]);
+                            $whereSql = $this->callExpressionMethod($query,$comparison->getComparison(),$column,$value[1]);
                         } else if (isset(static::$comparison[$comparison])) {
                             // （ps:['userId'=>['in',[1,2,3,4]]]),ps:['userId'=>['eq','1'])
-                            $whereSql = $this->callExpressionMethod($comparison,$column,$value[1]);
+                            $whereSql = $this->callExpressionMethod($query,$comparison,$column,$value[1]);
                         } else {
                             //（ps:['userId'=>['1','2','5'])
-                            $whereSql = $this->callExpressionMethod(static::EXP_IN,$column,$value);
+                            $whereSql = $this->callExpressionMethod($query,static::EXP_IN,$column,$value);
                         }
                     }
                 } else {// （ps:['age'=>[['gt',4],['lt','9']]])
                     $range_where_sql = [];
                     foreach ($value as $exp=>$val) {
-                        $range_where_sql[] = $this->callExpressionMethod($val[0],$column,$val[1]);
+                        $range_where_sql[] = $this->callExpressionMethod($query,$val[0],$column,$val[1]);
                     }
 
                     $whereSql = implode(' and ',$range_where_sql);
@@ -778,7 +771,7 @@ class SqlQueryBuilder extends BaseQueryBuilder
 
         } else {// 字段名为数字，一般情况下，$column 为数字,则where 为嵌套条件
             if ($value instanceof RawExpression) {
-                return $this->buidlRawExpression($value);
+                return $this->buidlRawExpression($query,$value);
             } else {
                 if (is_array($value)) {
                     $comparison = current($value);
@@ -787,15 +780,15 @@ class SqlQueryBuilder extends BaseQueryBuilder
                 }
 
                 if ($comparison instanceof RawComparison) {
-                    return $this->callExpressionMethod($comparison->getComparison(),$value[1],$value[2]);
+                    return $this->callExpressionMethod($query,$comparison->getComparison(),$value[1],$value[2]);
                 } else if (!is_array($comparison))  {
                     if (isset(static::$comparison[$comparison]) && count($value) == 3 && DbUtil::isIndexArray($value)) {
-                        return $this->callExpressionMethod($value[0],$value[1],$value[2]);
+                        return $this->callExpressionMethod($query,$value[0],$value[1],$value[2]);
                     } else {
-                        return $this->parseWhere($value,null);
+                        return $this->parseWhere($query,$value,null);
                     }
                 } else {
-                    return $this->parseWhere($value,null);
+                    return $this->parseWhere($query,$value,null);
                 }
             }
         }
@@ -811,7 +804,7 @@ class SqlQueryBuilder extends BaseQueryBuilder
      * @param array $condition 字段名，字段值 [$column,$values]
      * @return string
      */
-    protected function bulidInWhere($operator,$condition = [])
+    protected function bulidInWhere(Query $query,$operator,$condition = [])
     {
         $operator = static::$comparison[strtolower($operator)];
         list($columnName, $values) = $condition;
@@ -826,14 +819,14 @@ class SqlQueryBuilder extends BaseQueryBuilder
 
             // 只有一个查询条件
             if (count($values) == 1) {
-                $buildSql = $this->buildColumnExpression($columnName,$values[0]);
+                $buildSql = $this->buildColumnExpression($query,$columnName,$values[0]);
             } else {
                 $inValues = [];
                 foreach ($values as $value) {
-                    $inValues[] = $this->buildColumnValue($columnName,$value);
+                    $inValues[] = $this->buildColumnValue($query,$columnName,$value);
                 }
 
-                $columnName = $this->parseColumnName($columnName);
+                $columnName = $this->parseColumnName($query,$columnName);
                 $conditionSql = implode(',',$inValues);
                 $buildSql = " {$columnName} $operator ({$conditionSql})";
             }
@@ -852,16 +845,16 @@ class SqlQueryBuilder extends BaseQueryBuilder
      * @param array $condition 字段名，字段值 [$column,$values]
      * @return string
      */
-    protected function bulidBetweenWhere($operator,$condition = [])
+    protected function bulidBetweenWhere(Query $query,$operator,$condition = [])
     {
         list($columnName, $values) = $condition;
         $betweenValues = [];
         foreach ($values as $value) {
-            $betweenValues[] = $this->buildColumnValue($columnName,$value);
+            $betweenValues[] = $this->buildColumnValue($query,$columnName,$value);
         }
 
-        $columnName = $this->parseColumnName($columnName);
-        $buildSql = " {$columnName} BETWEEN {$betweenValues[0]} AND {$betweenValues[1]}";
+        $columnName = $this->parseColumnName($query,$columnName);
+        $buildSql = " {$columnName} >= {$betweenValues[0]} AND {$columnName} <= {$betweenValues[1]}";
 
         return $buildSql;
     }
@@ -876,7 +869,7 @@ class SqlQueryBuilder extends BaseQueryBuilder
      * @param array $condition 字段名，字段值 [$column,$values]
      * @return string
      */
-    protected function bulidNormalWhere($operator,$condition = [])
+    protected function bulidNormalWhere(Query $query,$operator,$condition = [])
     {
         list($columnName, $columnValue) = $condition;
         if (isset(static::$comparison[strtolower($operator)])) {
@@ -886,7 +879,7 @@ class SqlQueryBuilder extends BaseQueryBuilder
         if ($columnValue instanceof Query) {
             $buildSql = " {$columnName} $operator ({$this->buildSelectSql($columnValue)})";
         } else {
-            $buildSql = $this->buildColumnExpression($columnName,$columnValue,$operator);
+            $buildSql = $this->buildColumnExpression($query,$columnName,$columnValue,$operator);
         }
 
         return $buildSql;
@@ -902,11 +895,11 @@ class SqlQueryBuilder extends BaseQueryBuilder
      * @param array $condition 字段名，字段值 [$column,$values]
      * @return string
      */
-    protected function bulidExpressionWhere($operator,$condition = [])
+    protected function bulidExpressionWhere(Query $query,$operator,$condition = [])
     {
 
         list($columnName, $columnValue) = $condition;
-        $columnName = $this->parseColumnName($columnName);
+        $columnName = $this->parseColumnName($query,$columnName);
         $buildSql = " {$columnName}  {$columnValue}";
         return $buildSql;
     }
@@ -921,19 +914,19 @@ class SqlQueryBuilder extends BaseQueryBuilder
      * @param array $condition 字段名，字段值 [$column,$values]
      * @return string
      */
-    protected function bulidAsWhere($operator,$condition = [])
+    protected function bulidAsWhere(Query $query,$operator,$condition = [])
     {
 
         list($columnName, $columnValue) = $condition;
-        $columnName = $this->parseColumnName($columnName);
+        $columnName = $this->parseColumnName($query,$columnName);
 
         if (is_array($columnValue)) {
             // 带方法 比如min,max
             list($columnAlias,$sqlMethod) = $columnValue;
-            $columnAlias = $this->parseColumnName($columnAlias);
+            $columnAlias = $this->parseColumnName($query,$columnAlias);
             $buildSql = "{$sqlMethod}({$columnName}) AS {$columnAlias}";
         } else {
-            $columnValue = $this->parseColumnName($columnValue);
+            $columnValue = $this->parseColumnName($query,$columnValue);
             // 字符串
             $buildSql = " {$columnName} AS {$columnValue}";
         }
@@ -951,10 +944,10 @@ class SqlQueryBuilder extends BaseQueryBuilder
      * @param array $condition 字段名，字段值 [$column,$values]
      * @return string
      */
-    protected function bulidIncData($operator,$condition = [])
+    protected function bulidIncData(Query $query,$operator,$condition = [])
     {
         list($columnName, $columnValue) = $condition;
-        $columnName = $this->parseColumnName($columnName);
+        $columnName = $this->parseColumnName($query,$columnName);
         $buildSql = " {$columnName} = {$columnName} + {$columnValue}";
 
         return $buildSql;
@@ -970,10 +963,10 @@ class SqlQueryBuilder extends BaseQueryBuilder
      * @param array $condition 字段名，字段值 [$column,$values]
      * @return string
      */
-    protected function bulidDecData($operator,$condition = [])
+    protected function bulidDecData(Query $query,$operator,$condition = [])
     {
         list($columnName, $columnValue) = $condition;
-        $columnName = $this->parseColumnName($columnName);
+        $columnName = $this->parseColumnName($query,$columnName);
         $buildSql = " {$columnName} = {$columnName} - {$columnValue}";
 
         return $buildSql;
@@ -990,10 +983,11 @@ class SqlQueryBuilder extends BaseQueryBuilder
      * @param array $condition 字段名，字段值 [$column,$values]
      * @return string
      */
-    protected function bulidRawWhere($operator,$condition = [])
+    protected function bulidRawWhere(Query $query,$operator,$condition = [])
     {
         list($columnName, $columnValue) = $condition;
-        $columnName = $this->parseColumnName($columnName);
+        $columnName = $this->parseColumnName($query,$columnName);
+        $columnValue = $this->parseColumnName($query,$columnValue);
         $buildSql = " {$columnName} = {$columnValue}";
 
         return $buildSql;
@@ -1010,10 +1004,10 @@ class SqlQueryBuilder extends BaseQueryBuilder
      * @param string $columnName 左边字段名
      * @return string
      */
-    protected function buidlRawExpression($rawExpression,$columnName = '')
+    protected function buidlRawExpression(Query $query,$rawExpression,$columnName = '')
     {
         if (!empty($columnName)) {
-            $columnName = $this->parseColumnName($columnName);
+            $columnName = $this->parseColumnName($query,$columnName);
         }
 
         $buildSql = " {$columnName} {$rawExpression->getExpression()}";

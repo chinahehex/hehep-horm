@@ -80,9 +80,9 @@ class NosqlQueryBuilder extends BaseQueryBuilder
 
         'in'=>'$in',// in 属于集合id
         'not in'=>'$nin',
-
+        'like'=>'$regex',
 //        'exp'=>'exp',
-//        'raw'=>'raw',
+        'raw'=>'raw',
 //        'inc'=>'inc',
 //        'dec'=>'dec',
 //        'between'=>'between',
@@ -119,7 +119,9 @@ class NosqlQueryBuilder extends BaseQueryBuilder
         'between'=>'bulidBetweenWhere',
         'exp'=>'bulidExpressionWhere',
         'or'=>'bulidOrWhere',
-        'and'=>'bulidAndWhere'
+        'and'=>'bulidAndWhere',
+        'like'=>'bulidLikeWhere',
+        'raw'=>'bulidRawWhere',
     ];
 
     /**
@@ -134,7 +136,7 @@ class NosqlQueryBuilder extends BaseQueryBuilder
     public function insert(Query $query)
     {
         $opts = [
-            'table'=>$this->parseTable($query->getTable()),
+            'table'=>$this->parseTable($query,$query->getTable()),
             'data'=>$query->getData(),
             'opts'=>[
 
@@ -149,7 +151,32 @@ class NosqlQueryBuilder extends BaseQueryBuilder
         return $command;
     }
 
+    /**
+     * 批量记录
+     *<B>说明：</B>
+     *<pre>
+     *  略
+     *</pre>
+     * @param Query $query 命令对象
+     * @return array
+     */
+    public function insertAll(Query $query)
+    {
+        $opts = [
+            'table'=>$this->parseTable($query,$query->getTable()),
+            'data'=>$query->getData(),
+            'opts'=>[
 
+            ],
+        ];
+
+        $command = [
+            'method'=>'insertAll',
+            'options'=>$opts
+        ];
+
+        return $command;
+    }
 
     /**
      * 生成删除行sql
@@ -163,10 +190,10 @@ class NosqlQueryBuilder extends BaseQueryBuilder
     public function delete(Query $query)
     {
         $opts = [
-            'table'=>$this->parseTable($query->getTable()),
-            'filter'=>$this->parseWhere($query->getWhere()),
+            'table'=>$this->parseTable($query,$query->getTable()),
+            'filter'=>$this->parseWhere($query,$query->getWhere()),
             'opts'=>[
-                'limit'=>$this->parseLimit($query->getLimit()),
+                'limit'=>$this->parseLimit($query,$query->getLimit()),
             ],
         ];
 
@@ -190,13 +217,18 @@ class NosqlQueryBuilder extends BaseQueryBuilder
     public function update(Query $query)
     {
         $opts = [
-            'table'=>$this->parseTable($query->getTable()),
-            'data'=>$this->parseSet($query->getData()),
-            'filter'=>$this->parseWhere($query->getWhere()),
+            'table'=>$this->parseTable($query,$query->getTable()),
+            'data'=>$this->parseSet($query,$query->getData()),
+            'filter'=>$this->parseWhere($query,$query->getWhere()),
             'opts'=>[
-                'limit'=>$this->parseLimit($query->getLimit()),
+                'multi'=>true
             ],
         ];
+
+        $limit = $query->getLimit();
+        if (is_numeric($limit) && $limit == 1) {
+            $opts['opts']['multi'] = false;
+        }
 
         $command = [
             'method'=>'update',
@@ -215,10 +247,10 @@ class NosqlQueryBuilder extends BaseQueryBuilder
      * @param Query $query sql 参数
      * @return array
      */
-    public function select($query)
+    public function select(Query $query)
     {
-        if (!empty($query->getGroup())) {
-            $command = $this->parseGroupQueryAggregate($query);
+        if (!empty($query->getGroup()) || !empty($query->getJoin())) {
+            $command = $this->parseQueryAggregate($query);
         } else {
             $command = $this->parseQueryCommand($query);
         }
@@ -236,7 +268,7 @@ class NosqlQueryBuilder extends BaseQueryBuilder
      * @param string $method 聚合查询方法
      * @return array
      */
-    public function queryScalar($query,$method)
+    public function queryScalar(Query $query,$method)
     {
         if (empty($query->getField()) || $query->getField() == '*') {
             $groupField = 1;
@@ -257,7 +289,7 @@ class NosqlQueryBuilder extends BaseQueryBuilder
         $pipelines = [];
 
         if (!empty($query->getWhere())) {
-            $pipelines[] = ['$match' => $this->parseWhere($query->getWhere())];
+            $pipelines[] = ['$match' => $this->parseWhere($query,$query->getWhere())];
         }
 
         $pipelines[] = ['$group' =>[
@@ -268,23 +300,23 @@ class NosqlQueryBuilder extends BaseQueryBuilder
         ]];
 
         if (!empty($query->getHaving())) {
-            $pipelines[] = ['$match' => $this->parseWhere($query->getHaving())];
+            $pipelines[] = ['$match' => $this->parseWhere($query,$query->getHaving())];
         }
 
         if (!empty($query->getOrder())) {
-            $pipelines[] = ['$sort' => $this->parseOrder($query->getOrder())];
+            $pipelines[] = ['$sort' => $this->parseOrder($query,$query->getOrder())];
         }
 
         if (!empty($query->getLimit())) {
-            $pipelines[] = ['$limit' => $this->parseLimit($query->getLimit())];
+            $pipelines[] = ['$limit' => $this->parseLimit($query,$query->getLimit())];
         }
 
         if (!empty($query->getOffset())) {
-            $pipelines[] = ['$skip' => $this->parseOffset($query->getOffset())];
+            $pipelines[] = ['$skip' => $this->parseOffset($query,$query->getOffset())];
         }
 
         $opts = [
-            'table'=>$this->parseTable($query->getTable()),
+            'table'=>$this->parseTable($query,$query->getTable()),
             'pipelines'=>$pipelines,
             'opts'=>[]
         ];
@@ -299,7 +331,11 @@ class NosqlQueryBuilder extends BaseQueryBuilder
 
     protected function buildProjects($fields)
     {
-        return array_merge(['_id'=>0],$fields);
+        if (empty($fields)) {
+            return ['_id'=>0];
+        } else {
+            return array_merge(['_id'=>0],$fields);
+        }
     }
 
     /**
@@ -311,18 +347,18 @@ class NosqlQueryBuilder extends BaseQueryBuilder
      * @param Query $query sql 参数
      * @return string
      */
-    public function parseQueryCommand($query)
+    public function parseQueryCommand(Query $query)
     {
 
-        $fields = $this->parseField($query->getField());
+        $fields = $this->parseField($query,$query->getField());
         $opts = [
-            'table'=>$this->parseTable($query->getTable()),
-            'filter'=>$this->parseWhere($query->getWhere()),
+            'table'=>$this->parseTable($query,$query->getTable()),
+            'filter'=>$this->parseWhere($query,$query->getWhere()),
             'opts'=>[
                 'projection'=>$this->buildProjects($fields['fields']),
-                'sort'=>$this->parseOrder($query->getOrder()),
-                'limit'=>$this->parseLimit($query->getLimit()),
-                'skip'=>$this->parseOffset($query->getOffset()),
+                'sort'=>$this->parseOrder($query,$query->getOrder()),
+                'limit'=>$this->parseLimit($query,$query->getLimit()),
+                'skip'=>$this->parseOffset($query,$query->getOffset()),
             ],
         ];
 
@@ -343,36 +379,51 @@ class NosqlQueryBuilder extends BaseQueryBuilder
      * @param Query $query sql 参数
      * @return array
      */
-    protected function parseGroupQueryAggregate($query)
+    protected function parseQueryAggregate(Query $query)
     {
 
-        $fields = $this->parseField($query->getField());
         $pipelines = [];
 
+        if (!empty($query->getJoin())) {
+            list($lookups,$matchs) = $this->parseJoin($query,$query->getJoin());
+            foreach ($lookups as $lookup) {
+                $pipelines[] = ['$lookup'=>$lookup];
+                $pipelines[] = ['$unwind'=>'$'.$lookup['as']];
+            }
+
+            foreach ($matchs as $match) {
+                $pipelines[] = ['$match'=>$match];
+            }
+        }
+
+        $fields = $this->parseField($query,$query->getField());
+
         if (!empty($query->getWhere())) {
-            $pipelines[] = ['$match' => $this->parseWhere($query->getWhere())];
+            $pipelines[] = ['$match' => $this->parseWhere($query,$query->getWhere())];
         }
 
-        $pipelines = $this->parseAggregateGroupField($pipelines,$fields['methods'],$query);
-
-        if (!empty($query->getHaving())) {
-            $pipelines[] = ['$match' => $this->parseWhere($query->getHaving())];
+        if (!empty($query->getGroup())) {
+            $pipelines = $this->parseAggregateGroupField($query,$pipelines,$fields['methods'],$query);
+        } else {
+            $pipelines[] = ['$project'=>$this->buildProjects($fields['fields'])];
         }
+
+
 
         if (!empty($query->getOrder())) {
-            $pipelines[] = ['$sort' => $this->parseOrder($query->getOrder())];
+            $pipelines[] = ['$sort' => $this->parseOrder($query,$query->getOrder())];
         }
 
         if (!empty($query->getLimit())) {
-            $pipelines[] = ['$limit' => $this->parseLimit($query->getLimit())];
+            $pipelines[] = ['$limit' => $this->parseLimit($query,$query->getLimit())];
         }
 
         if (!empty($query->getOffset())) {
-            $pipelines[] = ['$skip' => $this->parseOffset($query->getOffset())];
+            $pipelines[] = ['$skip' => $this->parseOffset($query,$query->getOffset())];
         }
 
         $opts = [
-            'table'=>$this->parseTable($query->getTable()),
+            'table'=>$this->parseTable($query,$query->getTable()),
             'pipelines'=>$pipelines,
             'opts'=>[]
         ];
@@ -396,46 +447,67 @@ class NosqlQueryBuilder extends BaseQueryBuilder
      * @param Query $query sql 参数
      * @return array
      */
-    private function parseAggregateGroupField($pipelines,$methodFields = [],$query)
+    private function parseAggregateGroupField(Query $query,$pipelines,$methodFields = [])
     {
-        $newGroups = $columns = [];
-        $countGroups = [];
+        $groups = $this->parseGroup($query,$query->getGroup());
+        $id_groups = [];
+        $method_groups = [];
+        $projects = [];
+        $having_projects = [];
+        foreach ($groups as $group_col) {
+            // 判断用户是否设置了读取字段
+            if (isset($methodFields[$group_col])) {
+                if (!empty($methodFields[$group_col]['method']) && $methodFields[$group_col]['method']  != 'count') {
+
+                } else {
+                    $id_groups[$group_col] = '$'.$group_col;
+                }
+            } else {
+                $id_groups[$group_col] = '$'.$group_col;
+            }
+        }
 
         if (!empty($methodFields)) {
-            foreach ($methodFields as $column=>$operator) {
-                $alias = isset($operator['alias']) ? $operator['alias'] : $column;
-                if (isset($operator['method'])) {
-                    if ($operator['method'] == 'count') {
-                        $countGroups[$alias] =  ['$'.$this->getMethod($operator['method'])=>1];
+            foreach ($methodFields as $column=>$field) {
+                $alias = !empty($field['alias']) ? $field['alias'] : $field['field'];
+                if (!empty($field['method'])) {
+                    if ($field['method'] == 'count') {
+                        $method_groups[$alias] =  ['$'.$this->getMethod($field['method'])=>1];
                     } else {
-                        $countGroups[$alias] =  ['$'.$this->getMethod($operator['method'])=>'$'.$column];
+                        $method_groups[$alias] =  ['$'.$this->getMethod($field['method'])=>'$'.$field['field']];
                     }
-                } else {
-                    $newGroups[$alias] = '$'.$column;
                 }
+                $projects[$alias] = '$'.$alias;
+                $having_projects[$alias] = '$'.$alias;
             }
         }
 
-
-        if (!empty($countGroups)) {
-            $project = [];
-            foreach ($newGroups as $alias=>$value) {
-                $project[$alias] = '$_id.' . $alias;
-            }
-
-            $groupList = ['_id'=>$newGroups];
-            foreach ($countGroups as $alias=>$value) {
-                $groupList[$alias] = $value;
-                $project[$alias] = 1;
-            }
-
-            $pipelines[] = ['$group'=>$groupList];
-            $pipelines[] = ['$project'=>$this->buildProjects($project)];
-
-        } else {
-            $pipelines[] = ['$group'=>$this->buildProjects($newGroups)];
+        $group_list = ['_id'=>$id_groups];
+        foreach ($id_groups as $alias=>$val) {
+            $having_projects[$alias] = '$_id.' . $alias;
         }
 
+        if (!empty($method_groups)) {
+            foreach ($method_groups as $alias=>$val) {
+                $group_list[$alias] = $val;
+            }
+        }
+
+        if (!empty($group_list)) {
+            $pipelines[] = ['$group'=>$group_list];
+        }
+
+        if (!empty($having_projects)) {
+            $pipelines[] = ['$project'=>$this->buildProjects($having_projects)];
+        }
+
+        if (!empty($query->getHaving())) {
+            $pipelines[] = ['$match' => $this->parseWhere($query,$query->getHaving())];
+        }
+
+        if (!empty($projects)) {
+            $pipelines[] = ['$project'=>$this->buildProjects($projects)];
+        }
 
         return $pipelines;
     }
@@ -450,7 +522,7 @@ class NosqlQueryBuilder extends BaseQueryBuilder
      * @param array $data 数据(一维数组)
      * @return array
      */
-    protected function parseSet($data = []) {
+    protected function parseSet(Query $query,$data = []) {
         $newData   =  array();
         foreach ($data as $key=>$value){
             if (is_array($value)) {
@@ -497,65 +569,77 @@ class NosqlQueryBuilder extends BaseQueryBuilder
      *</pre>
      * @return string
      */
-    protected function parseField($fields = [])
+    protected function parseField(Query $query,$fields = [])
     {
         $methodFields = [];
-
-        $regmethods = implode('|',array_keys($this->methods));
-
         $newFields = [];
+
+        // 判断
         if (empty($fields) || $fields == '*') {
+            $fields = [];
+        } else if ($fields == '#.*') {
             $fields = [];
         } else if (!is_array($fields)) {
             $fields = explode(',',$fields);
         }
 
         foreach ($fields as $column=>$field) {
-            if (is_numeric($column)) {
-                if (is_string($field)) {
-                    $column = $field;
-                } else if (is_array($field)) {
-                    $column = $field['field'];
-                }
-            }
+            // 别名
+            $alias = '';
 
-            $fieldvalue = [];
-            if (!is_array($field)) {
-                // 识别min
-                $alias = '';
-                preg_match('/(.+)\s+as\s+(.+)/i', $field, $asmatches);
-                if (!empty($asmatches)) {
-                    $aliascolumn = $asmatches[2];
-                    $fieldvalue['alias'] = $aliascolumn;
-                    $field = $asmatches[1];
-                }
+            // 字段应用的聚合方法
+            $method = '';
 
-                preg_match('/(' . $regmethods . ')\\((\w+)\\)(.?)/', $field, $methodmatches);
-                if (!empty($methodmatches)) {
-                    $fieldvalue['method'] = $methodmatches[1];
-                    $column = trim($methodmatches[2]);
+            if (is_string($column) && is_string($field)) {
+                $alias = $field;
+            } else if (is_numeric($column) && is_string($field)) {
+                preg_match('/(.+)\s+as\s+(.+)/i', $field, $alias_matches);
+                if (!empty($alias_matches)) {
+                    $alias = $alias_matches[2];
+                    $field = $alias_matches[1];
+                }
+                preg_match('/(' . implode('|',array_keys($this->methods)) . ')\\((\w+)\\)(.?)/', $field, $method_matches);
+                if (!empty($method_matches)) {
+                    $method = $method_matches[1];
+                    $column = trim($method_matches[2]);
                 } else {
                     $column = $field;
                 }
-            } else {
-                $fieldvalue = $field;
+            } else if (is_numeric($column) && is_array($field)) {
+                if (isset($field['field'])) {
+                    $column = $field['field'];
+                }
 
+                if (isset($field['alias'])) {
+                    $alias = $field['alias'];
+                }
+
+                if (isset($field['method'])) {
+                    $method = $field['method'];
+                }
+            } else if (is_string($column) && is_array($field)) {
+                if (isset($field['alias'])) {
+                    $alias = $field['alias'];
+                }
+
+                if (isset($field['method'])) {
+                    $method = $field['method'];
+                }
             }
 
-            $fieldvalue['field'] = $column;
-            $methodFields[$column] = $fieldvalue;
-
-            if (isset($fieldvalue['alias'])) {
-                $aliascolumn = $fieldvalue['alias'];
-            } else {
-                $aliascolumn = $column;
-            }
-
-            if (isset($fieldvalue['method'])) {
-                $newFields[$column] = ['$'.$this->getMethod($fieldvalue['method'])=>'$'.$column];
+            if (!empty($alias) && !empty($method)) {
+                $newFields[$column] = ['$'.$this->getMethod($method)=>'$'.$alias];
+            } else if (!empty($alias)) {
+                $newFields[$alias] = '$'.$column;
             } else {
                 $newFields[$column] = 1;
             }
+
+            $methodFields[] = [
+                'alias'=>$alias,
+                'method'=>$method,
+                'field'=>$column,
+            ];
         }
 
         return ['fields'=>$newFields,'methods'=>$methodFields];
@@ -571,7 +655,7 @@ class NosqlQueryBuilder extends BaseQueryBuilder
      * @param string $sqlKeyword 条件SQL关键词,比如where,having
      * @return string
      */
-    protected function parseWhere($where,$sqlKeyword = '$match')
+    protected function parseWhere(Query $query,$where,$sqlKeyword = '$match')
     {
         if (is_string($where)) { // 字符串,直接返回
             $whereSql = $where;
@@ -589,7 +673,7 @@ class NosqlQueryBuilder extends BaseQueryBuilder
                 }
             }
 
-            $whereSql = $operator == 'and' ? $this->bulidAndWhere($where) : $this->bulidOrWhere($where);
+            $whereSql = $operator == 'and' ? $this->bulidAndWhere($query,$where) : $this->bulidOrWhere($query,$where);
         }
 
         if (empty($whereSql)) {
@@ -608,9 +692,9 @@ class NosqlQueryBuilder extends BaseQueryBuilder
      * @param string|array $having
      * @return string
      */
-    protected function parseHaving($having = [])
+    protected function parseHaving(Query $query,$having = [])
     {
-        return  !empty($having)?  $this->parseWhere($having,'$match') : [];
+        return  !empty($having)?  $this->parseWhere($query,$having,'$match') : [];
     }
 
     /**
@@ -622,9 +706,9 @@ class NosqlQueryBuilder extends BaseQueryBuilder
      * @param array $condition 条件参数
      * @return string
      */
-    protected function bulidAndWhere($condition = [])
+    protected function bulidAndWhere(Query $query,$condition = [])
     {
-        $buildWhere = $this->buildWhere($condition);
+        $buildWhere = $this->buildWhere($query,$condition);
         if (!empty($buildWhere)) {
             return ['$and'=>$buildWhere];
         } else {
@@ -641,9 +725,9 @@ class NosqlQueryBuilder extends BaseQueryBuilder
      * @param array $condition 条件参数
      * @return string
      */
-    protected function bulidOrWhere($condition = [])
+    protected function bulidOrWhere(Query $query,$condition = [])
     {
-        $buildWhere = $this->buildWhere($condition);
+        $buildWhere = $this->buildWhere($query,$condition);
         if (!empty($buildWhere)) {
             return ['$or'=>$buildWhere];
         } else {
@@ -663,11 +747,11 @@ class NosqlQueryBuilder extends BaseQueryBuilder
      * 		['name=:name','userid=:userid']
      *</pre>
      */
-    protected function buildWhere($condition = [])
+    protected function buildWhere(Query $query,$condition = [])
     {
         $conditionSql = [];
         foreach ($condition as $column => $value) {
-            $whereItem = $this->parseWhereItem($column,$value);
+            $whereItem = $this->parseWhereItem($query,$column,$value);
             if (empty($whereItem)) {
                 continue;
             }
@@ -689,14 +773,14 @@ class NosqlQueryBuilder extends BaseQueryBuilder
      * @param string $value
      * @return string
      */
-    protected function parseWhereItem($column = '',$value = '')
+    protected function parseWhereItem(Query $query,$column = '',$value = '')
     {
         $whereSql = '';
         if (is_string($column)) {// 字段名为非数字
             if ($value instanceof RawExpression) {
-                $whereSql = $this->buidlRawExpression($value,$column);
+                $whereSql = $this->buidlRawExpression($query,$value,$column);
             } else if (!is_array($value)) {// (ps:['username'=>'name'])
-                $whereSql = $this->callExpressionMethod(self::EXP_EQ,$column,$value);
+                $whereSql = $this->callExpressionMethod($query,self::EXP_EQ,$column,$value);
             }else {// 字段值为数组,
                 $comparison = current($value);// 抽取表达式,抽取数组第一个元素['in','value']
 
@@ -705,27 +789,27 @@ class NosqlQueryBuilder extends BaseQueryBuilder
                         array_shift($value);
                         $range_where_sql = [];
                         foreach ($value as $exp=>$val) {
-                            $range_where_sql[] = $this->callExpressionMethod($val[0],$column,$val[1]);
+                            $range_where_sql[] = $this->callExpressionMethod($query,$val[0],$column,$val[1]);
                         }
-                        $whereSql = implode(' '.$comparison.' ',$range_where_sql);
+                        $whereSql = ['$'.$comparison=>$range_where_sql];
                     } else {// （ps:['userId'=>['in',[1,2,3,4]]]),ps:['userId'=>['eq','1'])
                         if ($comparison instanceof RawComparison) {
-                            $whereSql = $this->callExpressionMethod($comparison->getComparison(),$column,$value[1]);
+                            $whereSql = $this->callExpressionMethod($query,$comparison->getComparison(),$column,$value[1]);
                         } else if (isset(static::$comparison[$comparison])) {
                             // （ps:['userId'=>['in',[1,2,3,4]]]),ps:['userId'=>['eq','1'])
-                            $whereSql = $this->callExpressionMethod($comparison,$column,$value[1]);
+                            $whereSql = $this->callExpressionMethod($query,$comparison,$column,$value[1]);
                         } else {
                             // // （ps:['userId'=>['1','2','5'])
-                            $whereSql = $this->callExpressionMethod(BaseQueryBuilder::EXP_IN,$column,$value);
+                            $whereSql = $this->callExpressionMethod($query,BaseQueryBuilder::EXP_IN,$column,$value);
                         }
                     }
                 } else {// （ps:['age'=>[['gt',4],['lt','9']]])
                     $range_where_sql = [];
                     foreach ($value as $exp=>$val) {
-                        $range_where_sql[] = $this->callExpressionMethod($val[0],$column,$val[1]);
+                        $range_where_sql[] = $this->callExpressionMethod($query,$val[0],$column,$val[1]);
                     }
 
-                    $whereSql = implode(' and ',$range_where_sql);
+                    $whereSql = ['$and'=>$range_where_sql];
                 }
             }
 
@@ -733,7 +817,7 @@ class NosqlQueryBuilder extends BaseQueryBuilder
 
         } else {// 字段名为数字，一般情况下，$value 为数字递归解析where
             if ($value instanceof RawExpression) {
-                return $this->buidlRawExpression($value);
+                return $this->buidlRawExpression($query,$value);
             } else {
 
                 if (is_array($value)) {
@@ -743,16 +827,16 @@ class NosqlQueryBuilder extends BaseQueryBuilder
                 }
 
                 if ($comparison instanceof RawComparison) {
-                    return $this->callExpressionMethod($comparison->getComparison(),$value[1],$value[2]);
+                    return $this->callExpressionMethod($query,$comparison->getComparison(),$value[1],$value[2]);
                 } else if (!is_array($comparison))  {
                     if (isset(static::$comparison[$comparison]) && count($value) == 3 && DbUtil::isIndexArray($value)) {
-                        $whereSql = $this->callExpressionMethod($value[0],$value[1],$value[2]);
+                        $whereSql = $this->callExpressionMethod($query,$value[0],$value[1],$value[2]);
                         return $whereSql;
                     } else {
-                        return $this->parseWhere($value,null);
+                        return $this->parseWhere($query,$value,null);
                     }
                 } else {
-                    return $this->parseWhere($value,null);
+                    return $this->parseWhere($query,$value,null);
                 }
             }
         }
@@ -768,10 +852,10 @@ class NosqlQueryBuilder extends BaseQueryBuilder
      * @param array $condition 字段名，字段值 [$column,$values]
      * @return string
      */
-    protected function bulidInWhere($expression,$condition = [])
+    protected function bulidInWhere(Query $query,$expression,$condition = [])
     {
         list($column, $values) = $condition;
-
+        $column = $this->parseColumnName($query,$column);
         $expression = $this->getExpression($expression);
         if (!empty($column)) {
             return [$column=>[$expression=>$values]];
@@ -780,15 +864,23 @@ class NosqlQueryBuilder extends BaseQueryBuilder
         }
     }
 
-    protected function buidlRawExpression($rawExpression,$columnName = '')
+    protected function buidlRawExpression(Query $query,$rawExpression,$columnName = '')
     {
         if (!empty($columnName)) {
-            $columnName = $this->parseColumnName($columnName);
+            $columnName = $this->parseColumnName($query,$columnName);
         }
 
         $buildSql = " {$columnName} {$rawExpression->getExpression()}";
 
         return $buildSql;
+    }
+
+    protected function bulidRawWhere(Query $query,$operator,$condition = [])
+    {
+        list($columnName, $columnValue) = $condition;
+        $columnName = $this->parseColumnName($query,$columnName);
+
+        return [$columnName=>['$eq'=>$columnValue]];
     }
 
     /**
@@ -801,9 +893,10 @@ class NosqlQueryBuilder extends BaseQueryBuilder
      * @param array $condition 字段名，字段值 [$column,$values]
      * @return string
      */
-    protected function bulidBetweenWhere($expression = '',$condition = [])
+    protected function bulidBetweenWhere(Query $query,$expression = '',$condition = [])
     {
         list($column, $values) = $condition;
+        $column = $this->parseColumnName($query,$column);
         $egtExpression = $this->getExpression('egt');//大于等于
         $eltExpression = $this->getExpression('elt');//小于等于
 
@@ -820,9 +913,10 @@ class NosqlQueryBuilder extends BaseQueryBuilder
      * @param array $condition 字段名，字段值 [$column,$values]
      * @return string
      */
-    protected function bulidNormalWhere($expression = '',$condition = [])
+    protected function bulidNormalWhere(Query $query,$expression = '',$condition = [])
     {
         list($column, $values) = $condition;
+        $column = $this->parseColumnName($query,$column);
         $expression = strtolower($expression);
         if ($expression == 'eq') {
             return [$column=>$values];
@@ -846,21 +940,165 @@ class NosqlQueryBuilder extends BaseQueryBuilder
      * @param array $condition 字段名，字段值 [$column,$values]
      * @return string
      */
-    protected function bulidExpressionWhere($expression = '',$condition = [])
+    protected function bulidExpressionWhere(Query $query,$expression = '',$condition = [])
     {
         list($column, $values) = $condition;
+        $column = $this->parseColumnName($query,$column);
         $values = $values[0];
-        $column = $this->parseKey($column);
         $buildSql = " {$column}  {$values}";
+
         return $buildSql;
     }
 
-    protected function parseLimit($length = null,$offset = null)
+    /**
+     * 构建普通操作where 条件
+     *<B>说明：</B>
+     *<pre>
+     * 略
+     *</pre>
+     * @param string $expression 表达式名称
+     * @param array $condition 字段名，字段值 [$column,$values]
+     * @return string
+     */
+    protected function bulidLikeWhere(Query $query,$expression = '',$condition = [])
+    {
+        list($column, $values) = $condition;
+        $column = $this->parseColumnName($query,$column);
+
+        if (substr($values,0,1) == '%' && substr($values, -1) == '%') {
+            $regex = str_replace('%','',$values);
+        } else if (substr($values,0,1) == '%') {
+            $regex = str_replace('%','',$values) .'$';
+        } else if (substr($values, -1) == '%') {
+            $regex = '^' . str_replace('%','',$values);
+        } else {
+            $regex = $values;
+        }
+
+        return [$column=>new \MongoDB\BSON\Regex($regex,'i')];
+    }
+
+    /**
+     * 解析分组group
+     *<B>说明：</B>
+     *<pre>
+     * 略
+     *</pre>
+     * @param string|array $group
+     * @return string
+     */
+    protected function parseGroup(Query $query,$groups = [])
+    {
+        if (empty($groups)) {
+            return [];
+        }
+
+        if (is_string($groups)) {
+            $groups = explode(',',$groups);
+        }
+
+        return $groups;
+    }
+
+
+    protected function parseLimit(Query $query,$length = null,$offset = null)
     {
         return $length;
     }
 
-    protected function parseOffset($offset = null)
+    /**
+     * 解析table
+     *<B>说明：</B>
+     *<pre>
+     * 略
+     *</pre>
+     * @param string|Query $table 表名
+     * @return string 表名，多个表名逗号隔开
+     */
+    protected function buildTable(Query $query,$table = '')
+    {
+        $table_name = '';
+        $table_alias = '';
+
+        if (is_array($table)) {
+            list($table_name,$table_alias) = $table;
+            // 普通字符串
+            $table_name = $this->getTableName($table_name);
+        } else {
+            preg_match('/(.+)\s+as\s+(.+)/i', $table, $table_matches);
+            if (!empty($table_matches)) {
+                $table_name = $table_matches[1];
+                $table_alias = $table_matches[2];
+            } else {
+                $table_name = $table;
+            }
+            // 普通字符串
+            $table_name = $this->getTableName($table_name);
+        }
+
+        return [$table_name,$table_alias];
+    }
+
+    /**
+     * 解析连表join
+     *<B>说明：</B>
+     *<pre>
+     * 略
+     *</pre>
+     * @param array $joins 连表参数
+     * @return string
+     */
+    protected function parseJoin(Query $query,$joins = [])
+    {
+        $lookups = [];
+        $matchs = [];
+        foreach ($joins as $i=>$join) {
+            list ($table, $ons,$joinType) = $join;
+            list ($table_name,$table_alias) = $this->buildTable($query,$table);
+            $wheres = [];
+            $on_index = 0;
+            foreach ($ons as $on_col=>$on_val) {
+                if ($on_index == 0) {
+                    if (strpos($on_col,'.') !== false && strpos($on_val[1],'.') !== false) {
+                        list($on_table_alias1,$col_name1) = explode('.',$on_col);
+                        list($on_table_alias2,$col_name2) = explode('.',$on_val[1]);
+                        if ($on_table_alias1 == $table_alias) {
+                            $localField = $col_name2;
+                            $foreignField = $col_name1;
+                        } else {
+                            $localField = $col_name1;
+                            $foreignField = $col_name2;
+                        }
+                    } else if (strpos($on_col,'.') === false) {
+                        $localField = $on_col;
+                        list($on_table_alias2,$foreignField) = explode('.',$on_val[1]);
+                    } else if (strpos($on_val[1],'.') === false) {
+                        $localField = $on_val[1];
+                        list($on_table_alias2,$foreignField) = explode('.',$on_col);
+                    }
+                } else {
+                    $wheres[$on_col] = $on_val;
+                }
+
+                $on_index++;
+            }
+
+            $lookups[] = [
+                'from'=>$table_name,
+                'localField'=>$localField,
+                'foreignField'=>$foreignField,
+                'as'=>$table_alias,
+            ];
+
+            if (!empty($wheres)) {
+                $matchs[] =  $this->parseWhere($query,$wheres,'ON');
+            }
+        }
+
+        return [$lookups,$matchs];
+    }
+
+    protected function parseOffset(Query $query,$offset = null)
     {
         return $offset;
     }
@@ -871,7 +1109,7 @@ class NosqlQueryBuilder extends BaseQueryBuilder
      *<pre>
      * 略
      *</pre>
-     * @param array $order
+     * @param array $orders
      *<pre>
      *      array:
      *      $order = array(
@@ -885,19 +1123,20 @@ class NosqlQueryBuilder extends BaseQueryBuilder
      *</pre>
      * @return string
      */
-    protected function parseOrder($order)
+    protected function parseOrder(Query $query,$orders)
     {
-        if (is_array($order)) {
-            foreach ($order as $key=>$value) {
+        $sorts = [];
+        if (is_array($orders)) {
+            foreach ($orders as $key=>$value) {
                 if (is_numeric($key)) {
-                    $order =  [$value=>1];
+                    $sorts[$value] =  1;
                 } else {
-                    $order = [$key=>$value == SORT_DESC  ? -1 : 1];
+                    $sorts[$key] = ($value == SORT_DESC || strtolower($value) == 'desc')  ? -1 : 1;
                 }
             }
         }
 
-        return $order;
+        return $sorts;
     }
 
 
@@ -932,11 +1171,11 @@ class NosqlQueryBuilder extends BaseQueryBuilder
      * @param string $value 字段值
      * @return string
      */
-    public function callExpression($expression = '',$column = '',$value = '')
+    public function callExpression(Query $query,$expression = '',$column = '',$value = '')
     {
         $method = $this->getExpressionMethod($expression);
 
-        return call_user_func_array([$this, $method] ,[$expression, [$column,$value]]);
+        return call_user_func_array([$this, $method] ,[$query,$expression, [$column,$value]]);
     }
 
     /**

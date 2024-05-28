@@ -191,6 +191,7 @@ class DbConnection extends BaseConnection
      */
 	protected function createPDOStatement($command)
     {
+        //var_dump($command->getCommand());
         $pdoStatement = $this->conn->prepare($command->getCommand());
         // 参数绑定
         foreach ($command->getParams() as $key => $val) {
@@ -377,7 +378,7 @@ class DbConnection extends BaseConnection
 	 *</pre>
 	 * @return string|int
 	 */
-    public function getLastInsertID()
+    public function getLastInsertID($sequence = '')
 	{
         return $this->conn->lastInsertId();
     }

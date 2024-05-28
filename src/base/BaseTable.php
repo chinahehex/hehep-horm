@@ -42,6 +42,7 @@ abstract class BaseTable
      *      'having'=>[],// 分组条件
      *      'params'=>[],// 绑定参数
      *      'shard'=>[],// 分库分表规则
+     *      'seq'=>[],// 是否返回自增
      *      'dbConnKey'=>'',//数据库连接键名
      *      'replace'=>false,是否采用REPLACE into 的方式插入数据
      *      'isMaster'=>false,// 是否强制从主库读取
@@ -1007,6 +1008,22 @@ abstract class BaseTable
     public function asQuery($isQuery = true)
     {
         $this->options['isQuery'] = $isQuery;
+
+        return $this;
+    }
+
+    /**
+     * 是否返回自增id
+     *<B>说明：</B>
+     *<pre>
+     *  略
+     *</pre>
+     * @param string|bool $sequence 是否返回自增id
+     * @return $this
+     */
+    public function asSeq($sequence = true)
+    {
+        $this->options['seq'] = $sequence;
 
         return $this;
     }
@@ -2454,11 +2471,7 @@ abstract class BaseTable
             return ;
         }
 
-        $alias = $query->getAlias();
-        if (empty($alias)) {
-            // 分库分表可能有问题
-            $alias = $query->getDb()->getQueryBuilder()->getTableName($query->getTable());
-        }
+        $queryBuilder = $query->getQueryBuilder();
 
         $classEntity = $query->getEntity();
         $with_result = false;
@@ -2493,7 +2506,7 @@ abstract class BaseTable
 
             $refs = [];
             foreach ($ref_query->refs as $with_ref_column=>$mai_column) {
-                $refs["{$ref_alias}.{$with_ref_column}"] = ['raw',"{$alias}.{$mai_column}"];
+                $refs["{$ref_alias}.{$with_ref_column}"] = ['raw',"#.{$mai_column}"];
             }
 
             // where 条件
@@ -2518,7 +2531,7 @@ abstract class BaseTable
 
         $select = $query->getField();
         if ($with_result && empty($select)) {
-            $select = "{$alias}.*";
+            $select = "#.*";
             $query->setField($select);
         }
 
