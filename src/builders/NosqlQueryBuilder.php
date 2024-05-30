@@ -6,7 +6,6 @@ use horm\base\Query;
 use horm\base\RawComparison;
 use horm\base\RawExpression;
 use horm\base\BaseQueryBuilder;
-use horm\mongo\MongoCommand;
 use horm\util\DbUtil;
 
 /**
@@ -79,13 +78,10 @@ class NosqlQueryBuilder extends BaseQueryBuilder
         '<='=>'$lte',// 小于等于
 
         'in'=>'$in',// in 属于集合id
-        'not in'=>'$nin',
+        'notin'=>'$nin',
         'like'=>'$regex',
 //        'exp'=>'exp',
         'raw'=>'raw',
-//        'inc'=>'inc',
-//        'dec'=>'dec',
-//        'between'=>'between',
     ];
 
     /**
@@ -249,7 +245,7 @@ class NosqlQueryBuilder extends BaseQueryBuilder
      */
     public function select(Query $query)
     {
-        if (!empty($query->getGroup()) || !empty($query->getJoin())) {
+        if (!empty($query->getGroup()) || !empty($query->getJoin()) || !empty($query->getUnion())) {
             $command = $this->parseQueryAggregate($query);
         } else {
             $command = $this->parseQueryCommand($query);
@@ -381,9 +377,7 @@ class NosqlQueryBuilder extends BaseQueryBuilder
      */
     protected function parseQueryAggregate(Query $query)
     {
-
         $pipelines = [];
-
         if (!empty($query->getJoin())) {
             list($lookups,$matchs) = $this->parseJoin($query,$query->getJoin());
             foreach ($lookups as $lookup) {
@@ -402,13 +396,27 @@ class NosqlQueryBuilder extends BaseQueryBuilder
             $pipelines[] = ['$match' => $this->parseWhere($query,$query->getWhere())];
         }
 
+        if (!empty($query->getBuildResult())) {
+            $build_pipelines = array_values($query->getBuildResult());
+            foreach ($build_pipelines as $build_pipeline) {
+                foreach ($build_pipeline as $pipeline) {
+                    $pipelines[] = $pipeline;
+                }
+            }
+        }
+
         if (!empty($query->getGroup())) {
             $pipelines = $this->parseAggregateGroupField($query,$pipelines,$fields['methods'],$query);
         } else {
             $pipelines[] = ['$project'=>$this->buildProjects($fields['fields'])];
         }
 
-
+        if (!empty($query->getUnion())) {
+            $unions_cmds = $this->parseUnion($query,$query->getUnion());
+            foreach ($unions_cmds as $cmd) {
+                $pipelines[] = ['$unionWith'=>$cmd];
+            }
+        }
 
         if (!empty($query->getOrder())) {
             $pipelines[] = ['$sort' => $this->parseOrder($query,$query->getOrder())];
@@ -857,11 +865,29 @@ class NosqlQueryBuilder extends BaseQueryBuilder
         list($column, $values) = $condition;
         $column = $this->parseColumnName($query,$column);
         $expression = $this->getExpression($expression);
-        if (!empty($column)) {
-            return [$column=>[$expression=>$values]];
+        if ($values instanceof Query) {
+            $command = $this->createCommand($this->parseQueryAggregate($values),$values);
+            $pipelines = $command->getOptions('pipelines');
+            $in_column = $values->getField();
+            $pipelines[] = ['$group'=>[$in_column=>['$addToSet'=>'$'.$in_column]]];
+            $table = $command->getOptions('table');
+            $lookup = [
+                'from'=>$command->getOptions('table'),
+                'pipeline'=>$pipelines,
+                'as'=>$table,
+            ];
+
+            $match = [
+                "product_info.0"=>['$exists'=>true], // 筛选出有关联结果的文档
+                $column=>['$in','$'.$table . '.0.' . $in_column]
+            ];
+
+            $query->setBuildResult('in',$lookup);
+            $query->setBuildResult('in',$match);
         } else {
-            return [$expression=>$values];
+            return [$column=>[$expression=>$values]];
         }
+
     }
 
     protected function buidlRawExpression(Query $query,$rawExpression,$columnName = '')
@@ -1137,6 +1163,36 @@ class NosqlQueryBuilder extends BaseQueryBuilder
         }
 
         return $sorts;
+    }
+
+    /**
+     * 解析联合查询union
+     *<B>说明：</B>
+     *<pre>
+     * 略
+     *</pre>
+     * @param array $unions
+     * @return string
+     */
+    protected function parseUnion(Query $query,$unions = [])
+    {
+        $unions_command = [];
+        foreach ($unions as $query){
+            $unions_command[] =  $this->createCommand($this->parseQueryAggregate($query),$query);
+        }
+
+        $build_unions = [];
+        foreach ($unions_command as $command) {
+            /** @var NosqlCommand $command **/
+            $unionWith = [
+                'coll'=>$command->getOptions('table'),
+                'pipeline'=>$command->getOptions('pipelines'),
+            ];
+
+            $build_unions[] = $unionWith;
+        }
+
+        return $build_unions;
     }
 
 

@@ -2114,7 +2114,22 @@ abstract class BaseTable
         $rawCommand = $query->buildRawCommand();
         // 记录sql
         $this->getDbsession()->addQueryCommand($rawCommand);
-        $result = $query->getDb()->query($rawCommand);
+        $result = $query->getDb()->callQuery($rawCommand);
+        // 释放对象
+        unset($query);
+
+        return $result;
+    }
+
+    public function querySql($queryQql, $params = [])
+    {
+        $query = $this->getQuery();
+        $query->setCommand($queryQql, $params);
+        $query->toUpdate(false);
+        $rawCommand = $query->buildRawCommand();
+        // 记录sql
+        $this->getDbsession()->addQueryCommand($rawCommand);
+        $result = $query->getDb()->callQuery($rawCommand);
         // 释放对象
         unset($query);
 
@@ -2132,10 +2147,10 @@ abstract class BaseTable
      *<B>示例：</B>
      *<pre>
      *  示例1：删除UserId=315 记录
-     *  $result = $this->execute('delete from {{Users}} where UserId=:UserId',array(':UserId'=>315));
+     *  $result = $this->executeCmd('delete from {{Users}} where UserId=:UserId',array(':UserId'=>315));
      *
      *  示例2：修改UserId=315 的邮件地址
-     *  $result = $this->execute('update {{Users}} set Email="admin163.com" where UserId=:UserId',array(':UserId'=>316));
+     *  $result = $this->executeCmd('update {{Users}} set Email="admin163.com" where UserId=:UserId',array(':UserId'=>316));
      *</pre>
      * @param  string $queryCommand sql语句
      * @param  array $params 绑定参数
@@ -2145,7 +2160,7 @@ abstract class BaseTable
      *    boolean:false sql 错误
      *</pre>
      */
-    public function executeCmd($queryCommand, $params = array())
+    public function execCmd($queryCommand, $params = array())
     {
         $query = $this->getQuery();
         $query->setCommand($queryCommand, $params);
@@ -2154,7 +2169,47 @@ abstract class BaseTable
         // 记录sql
         $this->getDbsession()->addQueryCommand($rawCommand);
 
-        $result = $query->getDb()->execute($rawCommand);
+        $result = $query->getDb()->callExecute($rawCommand);
+        // 释放对象
+        unset($query);
+
+        return $result;
+    }
+
+    /**
+     * 执行更新sql
+     *<B>说明：</B>
+     *<pre>
+     *  执行操作
+     *  支持预处理
+     *  一般用于，更新，添加，删除的sql 操作
+     *</pre>
+     *<B>示例：</B>
+     *<pre>
+     *  示例1：删除UserId=315 记录
+     *  $result = $this->executeCmd('delete from {{Users}} where UserId=:UserId',array(':UserId'=>315));
+     *
+     *  示例2：修改UserId=315 的邮件地址
+     *  $result = $this->executeCmd('update {{Users}} set Email="admin163.com" where UserId=:UserId',array(':UserId'=>316));
+     *</pre>
+     * @param  string $queryCommand sql语句
+     * @param  array $params 绑定参数
+     * @return int|boolean
+     *<pre>
+     *    int:影响的行数
+     *    boolean:false sql 错误
+     *</pre>
+     */
+    public function execSql($execSql, $params = array())
+    {
+        $query = $this->getQuery();
+        $query->setCommand($execSql, $params);
+        $query->toUpdate(true);
+        $rawCommand = $query->buildRawCommand();
+        // 记录sql
+        $this->getDbsession()->addQueryCommand($rawCommand);
+
+        $result = $query->getDb()->callExecute($rawCommand);
         // 释放对象
         unset($query);
 
@@ -2260,7 +2315,7 @@ abstract class BaseTable
 
         $dbconn = $query->getDb();
         try {
-            $executeResult = $dbconn->execute($command);
+            $executeResult = $dbconn->callExecute($command);
         } catch (Exception $e) {
             throw $e;
         } finally {
@@ -2294,7 +2349,7 @@ abstract class BaseTable
 
         $dbconn = $query->getDb();
         try {
-            $queryResult = $dbconn->query($command);
+            $queryResult = $dbconn->callQuery($command);
 
         } catch (Exception $e) {
             throw $e;

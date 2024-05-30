@@ -1,10 +1,9 @@
 <?php
-namespace horm\tests\common;
+namespace horm\tests\common\mongo;
 
 use horm\Entity;
 use horm\QueryTable;
-use horm\shard\rule\ModShardRule;
-use horm\shard\ShardTable;
+use horm\tests\common\mongo\AdminUserRoleNosqlEntity;
 use horm\tests\TestCase;
 
 /**
@@ -30,30 +29,12 @@ use horm\tests\TestCase;
  * hehex
  *
  */
-class AdmminUserinfoEntity extends Entity
+class AdminUserinfoNosqlEntity extends Entity
 {
 
     public static function dbSession()
     {
         return TestCase::getDbsession();
-    }
-
-    /**
-     * ShardTable 分表
-     * @return string
-     */
-    public static function queryTable()
-    {
-        return ShardTable::class;
-    }
-
-    /**
-     * 分表规则定义
-     * @return ModShardRule
-     */
-    public static function tbShardRule()
-    {
-        return new ModShardRule(3,'userId');
     }
 
     /**
@@ -72,7 +53,7 @@ class AdmminUserinfoEntity extends Entity
     public static function tableName()
     {
         // '{{%users_:shard}}',:shard 分区号
-        return '{{%admin_users_info_}}';
+        return '{{%admin_users}}';
 
     }
 
@@ -82,7 +63,7 @@ class AdmminUserinfoEntity extends Entity
      */
     public static function autoIncrement()
     {
-        return true;
+        return false;
     }
 
     /**
@@ -92,6 +73,21 @@ class AdmminUserinfoEntity extends Entity
     public static function pk()
     {
         return 'id';
+    }
+
+    public static function getRole()
+    {
+        return static::hasOne(AdminUserRoleNosqlEntity::class,['id'=>'roleId']);
+    }
+
+    public static function scopeEffective(QueryTable $queryTable,$status=2)
+    {
+        $queryTable->setWhere(['status'=>1]);
+    }
+
+    public static function scopeAdmin(QueryTable $queryTable)
+    {
+        $queryTable->setWhere(['roleId'=>['>=',0]]);
     }
 
 

@@ -69,6 +69,11 @@ class PgsqlCurdTest extends CurdTest
 
     }
 
+    public function testDbconn()
+    {
+        parent::testDbconn();
+    }
+
 
 
 

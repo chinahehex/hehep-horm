@@ -345,7 +345,11 @@ class Query
      */
 	protected $result = null;
 
-
+	/**
+	 * 构建过程中的产生的临时数据
+	 * @var array
+	 */
+	protected $build_results = [];
 
 	/**
 	 * 构造方法
@@ -408,6 +412,8 @@ class Query
 	public function setTable($table)
 	{
 		$this->table = $table;
+
+		return $this;
 	}
 
 	/**
@@ -434,6 +440,8 @@ class Query
 	public function setDbKey($dbkey)
     {
         $this->dbkey = $dbkey;
+
+		return $this;
     }
 
 	/**
@@ -447,6 +455,8 @@ class Query
 	public function setField($field)
 	{
 		$this->field = $field;
+
+		return $this;
 	}
 
     /**
@@ -497,11 +507,15 @@ class Query
 	public function addData($data)
 	{
 		$this->data[] = $data;
+
+		return $this;
 	}
 
 	public function setData($data)
     {
         $this->data = $data;
+
+		return $this;
     }
 
 	/**
@@ -550,6 +564,8 @@ class Query
 		} else {
 			$this->where = array_merge([$this->where],$where);
 		}
+
+		return $this;
 	}
 
 	/**
@@ -787,6 +803,8 @@ class Query
 	public function setBuildMethod($method)
 	{
 		$this->buildMethod =  $method;
+
+		return $this;
 	}
 
 	public function getBuildMethod()
@@ -805,7 +823,10 @@ class Query
 	public function setBuildParams($params)
 	{
 		$this->buildParams =  $params;
+
+		return $this;
 	}
+
 
     /**
      * 获取原始sql
@@ -873,6 +894,8 @@ class Query
 	{
 		$this->rawSql = $rawSql;
 		$this->params = $params;
+
+		return $this;
 	}
 
     /**
@@ -886,6 +909,8 @@ class Query
 	public function setResult($result)
     {
         $this->result = $result;
+
+		return $this;
     }
 
 
@@ -1027,8 +1052,6 @@ class Query
         $this->isWrite = $toUpdate;
     }
 
-
-
     /**
      *  获取当前db 连接 对象
      *<B>说明：</B>
@@ -1131,7 +1154,23 @@ class Query
 		return [$out[1],$out[2]];
 	}
 
+	public function setBuildResult($key,$result)
+	{
+		$this->build_results[$key][] = $result;
+	}
 
+	public function getBuildResult($key = '')
+	{
+		if (!empty($key)) {
+			if (isset($this->build_results[$key])) {
+				return $this->build_results[$key];
+			} else {
+				return null;
+			}
+		} else {
+			return $this->build_results;
+		}
+	}
 
 }
 

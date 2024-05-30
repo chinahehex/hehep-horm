@@ -242,7 +242,7 @@ class TestCase extends \PHPUnit\Framework\TestCase
             $dbconfig['password'] = static::$db_config['oci_pwd'];
         }
 
-        static::$_hdbsession->addDbconf($db_alias,$dbconfig);
+        static::$_hdbsession->addDb($db_alias,$dbconfig);
     }
 
     protected static function makeDb($db_alias,$db_name,$sql_file = '',$dbconfig = [],$shard = '')

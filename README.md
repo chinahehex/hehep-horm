@@ -22,7 +22,11 @@ composer require hehep/horm
 - 组件配置
 ```php
 $conf = [
-    'dbconf'=>[
+    // 默认db key
+    'dbkey'=>'hehe',
+    
+    // db列表
+    'dblist'=>[
         'hehe' => ['driver' => 'mysql','host' => 'localhost','database'=>'hehe','username' => 'root',
             'password' => '123123','port' => '3306','charset' => 'utf8','prefix' => 'web_',
             'reconnect'=>false,// 连接断线是否重连
@@ -54,7 +58,7 @@ $conf = [
 ## 数据库
 - mysql 数据库
 ```php
-$dbconf = [
+$dblist = [
     'hehe' => ['driver'=>'Pdo','type' => 'mysql','host' => 'localhost','database'=>'hehe','username' => 'root',
         'password' => '123123','port' => '3306','charset' => 'utf8','prefix' => 'web_'
      ]
@@ -64,7 +68,7 @@ $dbconf = [
 
 - sqlite 数据库
 ```php
-$dbconf = [
+$dblist = [
     'sqlite' => ['driver'=>'Pdo','type' => 'sqlite','database'=>'/home/hehe/www/db/hehe.db','prefix' => 'web_'],
 ];
     
@@ -72,7 +76,7 @@ $dbconf = [
 
 - pgsql 数据库
 ```php
-$dbconf = [
+$dblist = [
     'pgsql' => ['driver'=>'Pdo','type' => 'pgsql','host' => 'localhost','database'=>'hehedb','username' => 'postgres',
         'password' => '123123','port' => '5432','charset' => 'utf8','prefix' => 'web_'
     ],
@@ -82,7 +86,7 @@ $dbconf = [
 
 - oracle 数据库
 ```php
-$dbconf = [
+$dblist = [
     'oci' => ['driver'=>'Pdo','type' => 'oci','host' => 'localhost','database'=>'xe','username' => 'hehe',
                         'password' => '123123','port' => '1521','charset' => 'utf8','prefix' => 'web_'
     ]
@@ -92,7 +96,7 @@ $dbconf = [
 
 - mongodb 数据库
 ```php
-$dbconf = [
+$dblist = [
     'mongo' => ['driver' => 'mongo','type'=>'mongo','host' => 'localhost','database'=>'hehedb','username' => '',
         'password' => '','port' => '27017','charset' => 'utf8','prefix' => 'web_'
     ],
@@ -106,7 +110,7 @@ $dbconf = [
 
 - tidb 数据库
 ```php
-$dbconf = [
+$dblist = [
   'tidb' => ['driver' => 'mysql','host' => '127.0.0.1','database'=>'hehedb','username' => 'hehead',
         'password' => 'ad123123','port' => '4000','charset' => 'utf8','prefix' => 'web_',
    ],
@@ -447,7 +451,7 @@ use \horm\Dbsession;
 $result = AdminUserEntity::queryCmd("select * from web_admin_users where id in(1,2)");
 
 // 执行更新操作
-$result = AdminUserEntity::executeCmd("update web_admin_users set status=1 where id=2");
+$result = AdminUserEntity::execCmd("update web_admin_users set status=1 where id=2");
 
 $hdbsession = new Dbsession();
 $hdbsession->addDbconf('hehe1',[]);
@@ -457,7 +461,7 @@ $hdbsession->query('hehe1')->queryCmd("select * from web_admin_users limit 2");
 
 ```
 
-## scope预定义功能集合
+## 预定义功能(scope)集合
 
 - 定义预定义功能集合
 ```php
@@ -505,7 +509,7 @@ $users = AdminUserEntity::setWhere(['id'=>[1,2,3,4]])->effective(3)->fetchAll();
  $users = AdminUserEntity::setWhere(['id'=>['in',$users_query]])->fetchAll();
 ```
 ### setLimit,setOffset
-- asQuery 说明
+- 说明
 ```
 setOffset 起始位置为0,如从第一行读取,则设置为0,如从第二行读取,则设置为1
 ```
@@ -533,7 +537,7 @@ $users = AdminUserEntity::setWhere('realName like :realName')->setParam(['realNa
 ```
 
 
-## 连贯方法
+## 设置方法
 方法 | 说明
 ----------|-------------
 setWhere  | 设置查询条件
@@ -572,9 +576,45 @@ in  | in 查询 | $where = ['id'=>['in',[8,9]]]
 notin  | not in 查询 | $where = ['id'=>['notin',[8,9]]]
 exp  | 原始字符串 | $where = ['id'=>['exp','=9']] sql:`id`  =9
 raw  | 原始字符串 | ['u.UserName'=>['raw','t.UserName']](u.UserName = t.UserName), ['id'=>['raw','9']](`id` = 9);
-inc  | 字段递增 | $where = ['id'=>['inc',1]] sql:`id` = `id` + 1
-dec  | 字段递减 | $where = ['id'=>['dec',1]] sql:`id` = `id` - 1
+inc  | 字段递增 | $data = ['id'=>['inc',1]] sql:`id` = `id` + 1
+dec  | 字段递减 | $data = ['id'=>['dec',1]] sql:`id` = `id` - 1
 
+## 别名设置及引用
+- 别名说明
+```
+设置别名的地方主要有三处，主表别名,字段别名,连表别名,表别名的引用一般为"表别名.列名",
+主表别名可也通过"#"代替,格式:"#.列名"
+```
+- 操作示例
+```php
+// 主表别名
+$users = AdminUserEntity::setWhere(['adu.id'=>[1,2]])->setAlias('adu')->fetchAll();
+// # 符号代替主表别名
+$users = AdminUserEntity::setWhere(['#.id'=>[1,2]])->setAlias('adu')->fetchAll();
+
+// 如未设置主表别名,系统会自动会剔除"#."
+$users = AdminUserEntity::setWhere(['#.id'=>[1,2]])->fetchAll();
+
+$users = AdminUserEntity::setWhere(['#.id'=>[1,2]])->setAlias('user')->setSelect('#.*')
+    ->setJoin("{{%admin_user_role}} as role",['#.roleId'=>['raw','role.id']])->fetchAll();
+
+$users = AdminUserEntity::setWhere(['#.id'=>[1,2]])->setAlias('user')->setSelect('#.*')
+    ->setJoin("{{%admin_user_role}} as role",['role.id'=>['raw','#.roleId']])->fetchAll();
+```
+- 实体定义
+```php
+class AdminUserEntity extends Entity
+{
+    // 其他代码省略
+    
+    // 定义与其他实体关系
+    public static function getRole()
+    {
+        return static::hasOne(AdminUserRoleEntity::class,['id'=>'#.roleId'])
+        ->setWhere(['status'=>1]);
+    }
+}
+```
 
 ## 连表(join)关联查询
 - join 说明
@@ -1016,12 +1056,51 @@ UserEntity::setShard(['userId'=>3])->setWhere(['userId'=>1])->fetchOne();
 UserEntity::setShard(['userId'=>3])->deleteOne(['userId'=>1]);
 
 ```
+## DB连接操作模式
+```php
+$hdbsession = new \horm\Dbsession([]);
+$db_conn = $hdbsession->getDbConnection('hehe1');
+$number = $db_conn->insert('web_admin_users',['username'=>"okb",'password'=>'123123','tel'=>'135xxxxxxxx','realName'=>'hehex']);
 
-## 主从数据库分离
+// 批量插入
+$datas = [
+    ['username'=>'admin1','password'=>'123123','tel'=>'1351111' . rand(10000,99999)],
+    ['username'=>'admin2','password'=>'123123','tel'=>'1351111' . rand(10000,99999)]
+];
+
+$number = $db_conn->insertAll('web_admin_users',$datas);
+
+// 更新
+$number =$db_conn->update('web_admin_users',['tel'=>'135xxxx' .  rand(10000,99999)],['username'=>'admin']);
+
+// 删除操作
+$number =$db_conn->delete('web_admin_users',['username'=>'hello']);
+
+// 查询一条记录
+$user =$db_conn->fetchOne('web_admin_users',['id'=>1]);
+
+// 查询多条记录
+$users = $db_conn->fetchAll('web_admin_users',['id'=>[1,2]]);
+
+$users = $db_conn->fetchAll('web_admin_users',['id'=>[1,2]],['order'=>['id'=>SORT_DESC]]);
+
+
+// 执行查询sql
+$users = $db_conn->querySql('select * from web_admin_users where id in (1,2)');
+
+
+// 执行更新sql
+$number = $db_conn->execSql('update web_admin_users set tel="135xxxxbbbb" where id = 2');
+
+$number = $db_conn->execSql('update web_admin_users set tel=:tel where id = 2',['tel'=>'135xxxx' .  rand(10000,99999)]);
+```
+
+
+## 主从数据库
 - 说明
 ```
 以下几种情况系统会调用选择主库操作
-1.执行更新操作,比如:新增(add),更新(update),删除(delete),执行命令(executeCmd);
+1.执行更新操作,比如:新增(add),更新(update),删除(delete),执行命令(execCmd);
 2.主动调用asMaster()方法
 ```
 

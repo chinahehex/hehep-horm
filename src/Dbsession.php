@@ -22,6 +22,34 @@ use horm\pools\ConnectionPool;
  * @property DbConnection $dbconn 最后执行sql 的db 连接
  * @property string $lastcommand 最后执行命令语句
  *
+ * @method QueryTable setScope($scope,...$args)
+ * @method QueryTable setShard($shard_columns = [])
+ * @method QueryTable setSelect($fields = [])
+ * @method QueryTable setWhere($where = [], $params = [])
+ * @method QueryTable setTable($table = '')
+ * @method QueryTable setAlias($alias = '')
+ * @method QueryTable setJoin($table, $on, $joinType = '')
+ * @method QueryTable setWith($with,$join = false,$load = true)
+ * @method QueryTable setLeftWith($with,$load = true)
+ * @method QueryTable setInnerWith($with,$load = true)
+ * @method QueryTable setOrder($order = [])
+ * @method QueryTable setGroup($group = [])
+ * @method QueryTable setLimit($length = null)
+ * @method QueryTable setOffset($offset = null)
+ * @method QueryTable setParam($params = null)
+ * @method QueryTable asArray($asArray = true)
+ * @method QueryTable asMaster($asMaster = true)
+ * @method QueryTable queryCmd($queryCommand, $params = [])
+ * @method QueryTable execCmd($queryCommand, $params = [])
+ * @method QueryTable querySql($querySql, $params = [])
+ * @method QueryTable execSql($execcSql, $params = [])
+ * @method QueryTable addParams($params = [])
+ * @method QueryTable count($field = null,$where = [])
+ * @method QueryTable queryMax($field = null, $where = [])
+ * @method QueryTable queryMin($field = null, $where = [])
+ * @method QueryTable querySum($field = null, $where = [])
+ * @method QueryTable queryAvg($field = null, $where = [])
+ *
  */
 class Dbsession
 {
@@ -45,7 +73,7 @@ class Dbsession
      *</pre>
      * @var string
      */
-	public $defaultDbkey = 'hehe';
+	public $dbkey = 'hehe';
 
 	/**
 	 * 全部数据库配置
@@ -55,17 +83,7 @@ class Dbsession
 	 *</pre>
 	 * @var array
 	 */
-	public $dbconf = [];
-
-	/**
-	 * 数据库连接池
-	 *<B>说明：</B>
-	 *<pre>
-	 *  略
-	 *</pre>
-	 * @var DbConnection[] 数据库连接对象列表
-	 */
-	protected $dbConnections = [];
+	public $dblist = [];
 
     /**
      * 数据库连接池
@@ -165,11 +183,11 @@ class Dbsession
             return $this->dbConnectionPools[$dbKey];
 		}
 
-		if (!isset($this->dbconf[$dbKey])) {
+		if (!isset($this->dblist[$dbKey])) {
 			throw new Exception($this->formatMessage('db_non_existent',['dbkey'=>$dbKey]));
 		}
 
-        $dbconf = $this->dbconf[$dbKey];
+        $dbconf = $this->dblist[$dbKey];
         $this->dbConnectionPools[$dbKey] = $this->makeConnectionPool($dbKey,$dbconf);
 
         return $this->dbConnectionPools[$dbKey];
@@ -598,13 +616,13 @@ class Dbsession
      * @param string $queryTableClass 表
      * @return QueryTable
      */
-	public function query(string $dbkey = '',string $queryTableClass = QueryTable::class):QueryTable
+	protected function getQueryTable(string $dbkey = '',string $queryTableClass = QueryTable::class):QueryTable
 	{
 		/** @var QueryTable $queryTable**/
         $queryTable = new $queryTableClass();
 
         if (empty($dbkey)) {
-            $dbkey = $this->defaultDbkey;
+            $dbkey = $this->dbkey;
 		}
 
         $queryTable->setDbkey($dbkey);
@@ -620,35 +638,33 @@ class Dbsession
 	 *  略
 	 *</pre>
 	 * @param string $dbkey 数据库key
-	 * @param string $queryTableClass 表
 	 * @return QueryTable
 	 */
-	public function select(string $dbkey = '',string $queryTableClass = QueryTable::class):QueryTable
+	public function query(string $dbkey = ''):QueryTable
 	{
-		/** @var QueryTable $queryTable**/
-		$queryTable = new $queryTableClass();
-
-		if (empty($dbkey)) {
-			$dbkey = $this->defaultDbkey;
-		}
-
-		$queryTable->setDbkey($dbkey);
-		$queryTable->setDbsession($this);
-
-		return $queryTable;
+		return $this->getQueryTable($dbkey);
 	}
 
 	/**
-	 * 添加db配置
+	 * 添加数据库连接配置
 	 * @param string $db_key
 	 * @param array $db_conf
 	 * @return $this
 	 */
-	public function addDbconf(string $db_key = '',array $db_conf = []):self
+	public function addDb(string $db_key = '',array $db_conf = []):self
 	{
-		$this->dbconf[$db_key] = $db_conf;
+		$this->dblist[$db_key] = $db_conf;
 
 		return $this;
+	}
+
+	/**
+	 * 设置默认db key
+	 * @param $db_key
+	 */
+	public function setDb(string $db_key)
+	{
+		$this->dbkey = $db_key;
 	}
 
 	/**
@@ -662,6 +678,11 @@ class Dbsession
 			$connection->close();
 			unset($connection);
 		}
+	}
+
+	public function __call($method,$args)
+	{
+		return call_user_func_array([$this->getQueryTable(), $method], $args);
 	}
 
 }

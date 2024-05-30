@@ -171,7 +171,7 @@ class DbConnection extends BaseConnection
 	 * @param QueryCommand $command  sql 命令对象
 	 * @return array
 	 */
-	public function query($command)
+	public function callQuery($command)
 	{
         $this->initConnect();
 
@@ -181,17 +181,33 @@ class DbConnection extends BaseConnection
 	}
 
     /**
+     * 执行更新sql语句
+     *<B>说明：</B>
+     *<pre>
+     *  略
+     *</pre>
+     * @param QueryCommand $command sql命令对象
+     * @return int
+     */
+    public function callExecute($command)
+    {
+        $this->initConnect();
+        $pdoStatement = $this->executeCommand($command);
+
+        return $pdoStatement->rowCount();
+    }
+
+    /**
      * 执行查询 返回数据行
      *<B>说明：</B>
      *<pre>
      *  只执行查询的sql
      *</pre>
      * @param QueryCommand $command  sql 命令对象
-     * @return array|boolean
+     * @return PDOStatement|boolean
      */
-	protected function createPDOStatement($command)
+	protected function createPDOStatement($command):PDOStatement
     {
-        //var_dump($command->getCommand());
         $pdoStatement = $this->conn->prepare($command->getCommand());
         // 参数绑定
         foreach ($command->getParams() as $key => $val) {
@@ -208,8 +224,9 @@ class DbConnection extends BaseConnection
 
     protected function executeCommand($command):PDOStatement
     {
-        $pdoStatement = $this->createPDOStatement($command);
+        $this->initConnect();
 
+        $pdoStatement = $this->createPDOStatement($command);
         try {
 
             $result = $pdoStatement->execute();
@@ -220,7 +237,6 @@ class DbConnection extends BaseConnection
 
             return $pdoStatement;
         } catch (Exception $e) {
-
             if ($this->checkReconnect($e)) {
                 $this->resetConnect();
                 return $this->executeCommand($command);
@@ -241,22 +257,7 @@ class DbConnection extends BaseConnection
         return $message;
     }
 
-    /**
-     * 执行更新sql语句
-     *<B>说明：</B>
-     *<pre>
-     *  略
-     *</pre>
-     * @param QueryCommand $command sql命令对象
-     * @return int
-     */
-	public function execute($command)
-	{
-        $this->initConnect();
-        $pdoStatement = $this->executeCommand($command);
 
-        return $pdoStatement->rowCount();
-	}
 
     /**
      * 检测是否需要重连连接
@@ -427,15 +428,171 @@ class DbConnection extends BaseConnection
         return $result;
     }
 
-	/**
-	 * 获取sql生成对象
-	 *<B>说明：</B>
-	 *<pre>
-	 *  略
-	 *</pre>
-	 * @return BaseQueryBuilder
-	 */
-	public function getQueryBuilder(){}
+
+    /**
+     * 插入单条数据
+     * @param string $table
+     * @param array $data
+     * @param array $options
+     * @return int
+     * @throws Exception
+     */
+    public function insert(string $table,array $data = [],$options = [])
+    {
+        $this->initConnect();
+
+        $query_opts = array_merge($options,['table'=>$table,'data'=>$data]);
+        $query = (new Query($query_opts));
+        $query->setBuild('insert',[$query]);
+
+        $queryCommand = $this->getQueryBuilder()->buildParamsCommand($query);
+        $pdoStatement = $this->executeCommand($queryCommand);
+
+        return $pdoStatement->rowCount();
+    }
+
+    /**
+     * 批量插入数据
+     * @param string $table
+     * @param array $data
+     * @param array $options
+     * @return int
+     * @throws Exception
+     */
+    public function insertAll(string $table,array $data = [],$options = [])
+    {
+        $this->initConnect();
+
+        $query_opts = array_merge($options,['table'=>$table,'data'=>$data]);
+        $query = (new Query($query_opts));
+        $query->setBuild('insertAll',[$query]);
+
+        $queryCommand = $this->getQueryBuilder()->buildParamsCommand($query);
+        $pdoStatement = $this->executeCommand($queryCommand);
+
+        return $pdoStatement->rowCount();
+    }
+
+    /**
+     * 更新数据
+     * @param string $table
+     * @param array $data
+     * @param array $options
+     * @return int
+     * @throws Exception
+     */
+    public function update(string $table,array $data = [],array $condition = [],array $options = [])
+    {
+        $this->initConnect();
+
+        $query_opts = array_merge($options,['table'=>$table,'data'=>$data,'where'=>$condition]);
+        $query = (new Query($query_opts));
+        $query->setBuild('update',[$query]);
+
+        $queryCommand = $this->getQueryBuilder()->buildParamsCommand($query);
+        $pdoStatement = $this->executeCommand($queryCommand);
+
+        return $pdoStatement->rowCount();
+    }
+
+    /**
+     * 删除数据
+     * @param string $table
+     * @param array $data
+     * @param array $options
+     * @return int
+     * @throws Exception
+     */
+    public function delete(string $table,array $condition = [],array $options = [])
+    {
+        $this->initConnect();
+
+        $query_opts = array_merge($options,['table'=>$table,'where'=>$condition]);
+        $query = (new Query($query_opts));
+        $query->setBuild('delete',[$query]);
+
+        $queryCommand = $this->getQueryBuilder()->buildParamsCommand($query);
+        $pdoStatement = $this->executeCommand($queryCommand);
+
+        return $pdoStatement->rowCount();
+    }
+
+    /**
+     * 获取一条数据
+     * @param string $table
+     * @param array $condition
+     * @param array $options
+     * @return int
+     * @throws Exception
+     */
+    public function fetchOne(string $table,array $condition = [],array $options = [])
+    {
+        $this->initConnect();
+
+        $query_opts = array_merge($options,['table'=>$table,'where'=>$condition,'limit'=>1]);
+        $query = (new Query($query_opts));
+        $query->setBuild('select',[$query]);
+
+        $queryCommand = $this->getQueryBuilder()->buildParamsCommand($query);
+        $pdoStatement = $this->executeCommand($queryCommand);
+        $queryResult = $this->getResult($pdoStatement);
+        if (empty($queryResult)) {
+            return [];
+        }
+
+        return $queryResult[0];
+    }
+
+    /**
+     * 获取一条数据
+     * @param string $table
+     * @param array $condition
+     * @param array $options
+     * @return int
+     * @throws Exception
+     */
+    public function fetchAll(string $table,array $condition = [],array $options = [])
+    {
+
+        $query_opts = array_merge($options,['table'=>$table,'where'=>$condition]);
+        $query = (new Query($query_opts));
+        $query->setBuild('select',[$query]);
+
+        $queryCommand = $this->getQueryBuilder()->buildParamsCommand($query);
+        $pdoStatement = $this->executeCommand($queryCommand);
+        $queryResult = $this->getResult($pdoStatement);
+
+        return $queryResult;
+    }
+
+    /**
+     * 执行原始 sql
+     * @param string $sql
+     * @param array $params
+     */
+    public function execSql(string $sql,array $params = [])
+    {
+        $query = (new Query())->setCommand($sql,$params);
+        $queryCommand = $this->getQueryBuilder()->buildRawCommand($query);
+        $pdoStatement = $this->executeCommand($queryCommand);
+
+        return $pdoStatement->rowCount();
+    }
+
+    /**
+     * 查询原始 sql
+     * @param string $sql
+     * @param array $params
+     */
+    public function querySql(string $sql,array $params = [])
+    {
+        $query = (new Query())->setCommand($sql,$params);
+        $queryCommand = $this->getQueryBuilder()->buildRawCommand($query);
+        $pdoStatement = $this->executeCommand($queryCommand);
+
+        return $this->getResult($pdoStatement);
+    }
+
 
 
 

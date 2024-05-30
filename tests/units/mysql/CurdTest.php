@@ -234,13 +234,13 @@ class CurdTest extends TestCase
         $userEntitys = AdminUserEntity::queryCmd("select * from web_admin_users where id in (1,2)");
         $this->assertEquals(2,count($userEntitys));
 
-        $number = AdminUserEntity::executeCmd("update web_admin_users set status=1 where id=3");
+        $number = AdminUserEntity::execCmd("update web_admin_users set status=1 where id=3");
         $this->assertEquals(1,$number);
 
         $userEntitys = $this->hdbsession->query('hehe1')->queryCmd("select * from web_admin_users where id in (1,2)");
         $this->assertEquals(2,count($userEntitys));
 
-        $number = $this->hdbsession->query('hehe1')->executeCmd("update web_admin_users set status=2 where id=3");
+        $number = $this->hdbsession->query('hehe1')->execCmd("update web_admin_users set status=2 where id=3");
         $this->assertEquals(1,$number);
     }
 
@@ -328,10 +328,27 @@ class CurdTest extends TestCase
 
     public function testAlias()
     {
+        // 主表别名
+        $users = AdminUserEntity::setWhere(['adu.id'=>[1,2]])->setAlias('adu')->fetchAll();
+        // # 符号代替主表别名
+        $users = AdminUserEntity::setWhere(['#.id'=>[1,2]])->setAlias('adu')->fetchAll();
+
+        // 如未设置主表别名,系统会自动会剔除"#."
+        $users = AdminUserEntity::setWhere(['#.id'=>[1,2]])->fetchAll();
+
+        $users = AdminUserEntity::setWhere(['#.id'=>[1,2]])->setAlias('user')->setSelect('#.*')
+            ->setJoin("{{%admin_user_role}} as role",['#.roleId'=>['raw','role.id']])->fetchAll();
+
+        $users = AdminUserEntity::setWhere(['#.id'=>[1,2]])->setAlias('user')->setSelect('#.*')
+            ->setJoin("{{%admin_user_role}} as role",['role.id'=>['raw','#.roleId']])->fetchAll();
+
         $users = AdminUserEntity::setWhere(['#.id'=>[1,2,3,4]])->setAlias('adu')->setWith('role',true)->fetchAll();
         foreach ($users as $user) {
             $this->assertTrue(isset($user['role']['roleName']));
         }
+
+
+
     }
 
     public function testPolymerization()
@@ -420,6 +437,139 @@ class CurdTest extends TestCase
     {
         $users = AdminUserEntity::asArray()->setWhere(['id'=>[1,2,3,4]])->setLimit(2)->setOffset(1)->fetchAll();
         $this->assertTrue(count($users) == 2);
+    }
+
+    public function testDbconn()
+    {
+        $db_conn = $this->hdbsession->getDbConnection('hehe1');
+        $number = $db_conn->insert('web_admin_users',['username'=>"okb",'password'=>'123123','tel'=>'135xxxxxxxx','realName'=>'hehex']);
+        $this->assertTrue($number == 1);
+
+        // 批量插入
+        $datas = [
+            ['username'=>'admin1','password'=>'123123','tel'=>'1351111' . rand(10000,99999)],
+            ['username'=>'admin2','password'=>'123123','tel'=>'1351111' . rand(10000,99999)]
+        ];
+
+        $number = $db_conn->insertAll('web_admin_users',$datas);
+        $this->assertTrue($number == 2);
+
+        // 更新
+        $number =$db_conn->update('web_admin_users',['tel'=>'135xxxx' .  rand(10000,99999)],['username'=>'admin']);
+        $this->assertTrue($number == 1);
+
+        $number =$db_conn->delete('web_admin_users',['username'=>'hello']);
+        $this->assertTrue($number == 1);
+
+        // 查询
+        $user =$db_conn->fetchOne('web_admin_users',['id'=>1]);
+        $this->assertTrue(!empty($user) && $user['username'] == 'hehe1');
+
+        // 查询
+        $users = $db_conn->fetchAll('web_admin_users',['id'=>[1,2]]);
+        $this->assertTrue(!empty($users) &&
+            count($users) == 2 &&
+            $users[0]['username'] == 'hehe1' &&
+            $users[1]['username'] == 'admin'
+        );
+
+        $users = $db_conn->fetchAll('web_admin_users',['id'=>[1,2]],['order'=>['id'=>SORT_DESC]]);
+        $this->assertTrue(!empty($users) &&
+            count($users) == 2 &&
+            $users[0]['username'] == 'admin' &&
+            $users[1]['username'] == 'hehe1'
+        );
+
+        // 查询sql
+        $users = $db_conn->querySql('select * from web_admin_users where id in (1,2)');
+        $this->assertTrue(!empty($users) &&
+            count($users) == 2 &&
+            $users[0]['username'] == 'hehe1' &&
+            $users[1]['username'] == 'admin'
+        );
+
+        $number = $db_conn->execSql("update web_admin_users set tel='135xxxxbbbb' where id = 2");
+        $this->assertTrue($number == 1);
+
+        $number = $db_conn->execSql('update web_admin_users set tel=:tel where id = 2',['tel'=>'135xxxx' .  rand(10000,99999)]);
+        $this->assertTrue($number == 1);
+    }
+
+    public function testTblemode()
+    {
+        $this->hdbsession->setDb('hehe1');
+
+        $number = $this->hdbsession->setTable('web_admin_users')
+            ->setData(['username'=>"okb",'password'=>'123123','tel'=>'135xxxxxxxx','realName'=>'hehex'])->addOne();
+        $this->assertTrue($number == 1);
+
+        // 批量插入
+        $datas = [
+            ['username'=>'admin1','password'=>'123123','tel'=>'1351111' . rand(10000,99999)],
+            ['username'=>'admin2','password'=>'123123','tel'=>'1351111' . rand(10000,99999)]
+        ];
+
+        $number = $this->hdbsession->setTable('web_admin_users')
+            ->setData($datas)->addAll();
+        $this->assertTrue($number == 2);
+
+        // 更新
+        $number = $this->hdbsession->setTable('web_admin_users')
+            ->setData(['tel'=>'135xxxx' .  rand(10000,99999)])
+            ->setWhere(['username'=>'admin'])
+            ->updateOne();
+        $this->assertTrue($number == 1);
+
+        $number = $this->hdbsession->setTable('web_admin_users')
+            ->setData(['tel'=>'135xxxb' .  rand(10000,99999)])
+            ->setWhere(['username'=>'admin'])
+            ->updateAll();
+        $this->assertTrue($number == 1);
+
+        $number = $this->hdbsession->setTable('web_admin_users')
+            ->setWhere(['username'=>'hello'])
+            ->deleteOne();
+        $this->assertTrue($number == 1);
+
+        // 查询
+        $user = $this->hdbsession->setTable('web_admin_users')
+            ->setWhere(['id'=>1])->fetchOne();
+        $this->assertTrue(!empty($user) && $user['username'] == 'hehe1');
+
+        // 查询
+        $users = $this->hdbsession->setTable('web_admin_users')
+            ->setWhere(['id'=>[1,2]])
+            ->fetchAll();
+        $this->assertTrue(!empty($users) &&
+            count($users) == 2 &&
+            $users[0]['username'] == 'hehe1' &&
+            $users[1]['username'] == 'admin'
+        );
+
+        $users = $this->hdbsession->setTable('web_admin_users')
+            ->setWhere(['id'=>[1,2]])
+            ->setOrder(['id'=>SORT_DESC])
+            ->fetchAll();
+        $this->assertTrue(!empty($users) &&
+            count($users) == 2 &&
+            $users[0]['username'] == 'admin' &&
+            $users[1]['username'] == 'hehe1'
+        );
+
+        // 查询sql
+        $users = $this->hdbsession->querySql('select * from web_admin_users where id in (1,2)');
+        $this->assertTrue(!empty($users) &&
+            count($users) == 2 &&
+            $users[0]['username'] == 'hehe1' &&
+            $users[1]['username'] == 'admin'
+        );
+
+        $number = $this->hdbsession->execSql("update web_admin_users set tel='135xxxxbbbb' where id = 2");
+        $this->assertTrue($number == 1);
+
+        $number = $this->hdbsession->execSql('update web_admin_users set tel=:tel where id = 2',['tel'=>'135xxxx' .  rand(10000,99999)]);
+        $this->assertTrue($number == 1);
+
     }
 
 

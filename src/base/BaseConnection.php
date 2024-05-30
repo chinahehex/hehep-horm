@@ -43,6 +43,8 @@ abstract class BaseConnection
 	 */
 	public $config = [];
 
+	protected $ref_method_dict = [];
+
     /**
      * 构造方法
      *<B>说明：</B>
@@ -58,6 +60,33 @@ abstract class BaseConnection
                 $this->$name = $value;
             }
         }
+    }
+
+    protected function getMethodParams($method,$params = [])
+    {
+        $reflectionMethod = new \ReflectionMethod($this, $method);
+        $ref_params = [];
+        if (!isset($this->ref_method_dict[$method])) {
+            foreach ($reflectionMethod->getParameters() as $parameter) {
+                $name = $parameter->getName();
+                $ref_params[$name] = $parameter->isDefaultValueAvailable() ? $parameter->getDefaultValue() : null;
+            }
+
+            $this->ref_method_dict[$method] = $ref_params;
+        } else {
+            $ref_params = $this->ref_method_dict[$method];
+        }
+
+        $method_params = [];
+        foreach ($ref_params as $name=>$val) {
+            if (isset($params[$name])) {
+                $method_params[] = $params[$name];
+            } else {
+                $method_params[] = $val;
+            }
+        }
+
+        return $method_params;
     }
 
     /**
@@ -130,7 +159,7 @@ abstract class BaseConnection
 	 *  略
 	 *</pre>
 	 */
-	abstract public function query($command);
+	abstract public function callQuery($command);
 
 	/**
 	 * 执行更新sql语句
@@ -141,7 +170,7 @@ abstract class BaseConnection
 	 * @param QueryCommand $command sql命令对象
 	 * @return int
 	 */
-    abstract public function execute($command);
+    abstract public function callExecute($command);
 
     public function beginTransaction()
     {

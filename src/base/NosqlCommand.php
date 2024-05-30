@@ -26,8 +26,12 @@ class NosqlCommand extends QueryCommand
         return isset($this->command['method']) ? $this->command['method'] : '';
     }
 
-    public function getOptions($name)
+    public function getOptions($name = '')
     {
+        if ($name === '') {
+            return $this->command['options'];
+        }
+
         if (isset($this->command['options'][$name])) {
             return $this->command['options'][$name];
         } else {

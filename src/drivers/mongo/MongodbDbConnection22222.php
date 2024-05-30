@@ -14,7 +14,7 @@ use Exception;
  *  略
  *</pre>
  */
-class MongodbDbConnection extends DbConnection
+class MongodbDbConnection2222 extends DbConnection
 {
 
     /**
@@ -123,27 +123,6 @@ class MongodbDbConnection extends DbConnection
         }
     }
 
-    protected function formatCommandMethodParams(NosqlCommand $command)
-    {
-        $method = $command->getMethod();
-        $command_options = $command->getOptions();
-        $command_options['command'] = $command;
-
-        return $this->getMethodParams($method,$command_options);
-    }
-
-
-    protected function cursorToArray($cursor)
-    {
-        $datas = [];
-        foreach ($cursor as $document) {
-            $document = json_decode(json_encode($document),true);
-            $datas[] = $document;
-        }
-
-        return $datas;
-    }
-
     /**
      * 执行查询 返回数据行
      *<B>说明：</B>
@@ -165,7 +144,13 @@ class MongodbDbConnection extends DbConnection
         $method = $command->getMethod();
         if ($method != '' && method_exists($this,$method)) {
             //$result = call_user_func_array([$this,$method],[$command]);
-            $result = call_user_func_array([$this,$method],$this->formatCommandMethodParams($command));
+
+            $command_options = $command->getOptions();
+            $command_options['command'] = $command;
+            $method_params = $this->getMethodParams($method,$command_options);
+            array_push($method_params,$command);
+            $result = call_user_func_array([$this,$method],[$command]);
+
         } else {
             $result = $this->queryCmd($command);
         }
@@ -192,8 +177,7 @@ class MongodbDbConnection extends DbConnection
         $result = false;
         $method = $command->getMethod();
         if ($method != '' && method_exists($this,$method)) {
-            //$result = call_user_func_array([$this,$method],[$command]);
-            $result = call_user_func_array([$this,$method],$this->formatCommandMethodParams($command));
+            $result = call_user_func_array([$this,$method],[$command]);
         } else {
             $result = $this->execCmd($command);
         }
@@ -212,36 +196,33 @@ class MongodbDbConnection extends DbConnection
      *<pre>
      *  略
      *</pre>
-     * @param string $table
-     * @param array $data
-     * @param array $options
      * @param NosqlCommand $command
      * @return int
      */
-    public function insert(string $table,array $data,array $options = [],$command = [])
+    public function insert($command = [])
     {
-        $bulk = new \MongoDB\Driver\BulkWrite();
-        $bulk->insert($data);
+        $bulk = new \MongoDB\Driver\BulkWrite;
+        $bulk->insert($command->getOptions('data'));
         $insertOneResult = $this->conn->executeBulkWrite(
-            $this->buildNamespace($table),
+            $this->buildNamespace($command->getOptions('table')),
             $bulk,
-            $this->buildExecOptions($options)
+            $this->buildExecOptions()
         );
 
         return $insertOneResult->getInsertedCount();
     }
 
-    public function insertAll(string $table,array $data,array $options = [],$command = [])
+    public function insertAll($command = [])
     {
         $bulk = new \MongoDB\Driver\BulkWrite();
-        foreach ($data as $row) {
+        foreach ($command->getOptions('data') as $row) {
             $bulk->insert($row);
         }
 
         $insertOneResult = $this->conn->executeBulkWrite(
-            $this->buildNamespace($table),
+            $this->buildNamespace($command->getOptions('table')),
             $bulk,
-            $this->buildExecOptions($options)
+            $this->buildExecOptions()
         );
 
         return $insertOneResult->getInsertedCount();
@@ -256,13 +237,13 @@ class MongodbDbConnection extends DbConnection
      * @param NosqlCommand $command
      * @return int
      */
-    public function update(string $table,array $data,array $filter = [] ,array $opts = [],$command = [])
+    public function update($command = [])
     {
 
-        $bulk = new \MongoDB\Driver\BulkWrite();
-        $bulk->update($filter,$data,$opts);
+        $bulk = new \MongoDB\Driver\BulkWrite;
+        $bulk->update($command->getOptions('filter'),$command->getOptions('data'),$command->getOptions('opts'));
         $updateResult = $this->conn->executeBulkWrite(
-            $this->buildNamespace($table),
+            $this->buildNamespace($command->getOptions('table')),
             $bulk,
             $this->buildExecOptions()
         );
@@ -279,12 +260,12 @@ class MongodbDbConnection extends DbConnection
      * @param NosqlCommand $command
      * @return int
      */
-    public function delete(string $table ,array $filter = [],array $opts = [], $command = [])
+    public function delete($command = [])
     {
-        $bulk = new \MongoDB\Driver\BulkWrite();
-        $bulk->delete($filter,$opts);
+        $bulk = new \MongoDB\Driver\BulkWrite;
+        $bulk->delete($command->getOptions('filter'),$command->getOptions('opts'));
         $deleteResult = $this->conn->executeBulkWrite(
-            $this->buildNamespace($table),
+            $this->buildNamespace($command->getOptions('table')),
             $bulk,
             $this->buildExecOptions()
         );
@@ -302,12 +283,25 @@ class MongodbDbConnection extends DbConnection
      * @param NosqlCommand $command
      * @return array
      */
-    public function find(string $table,array $filter,array $opts = [],$command = [])
+    public function find($command = [])
     {
 
-        $query = new \MongoDB\Driver\Query($filter, $opts);
-        $cursor = $this->conn->executeQuery($this->buildNamespace($table), $query);
+        $query = new \MongoDB\Driver\Query($command->getOptions('filter'), $command->getOptions('opts'));
+        $cursor = $this->conn->executeQuery($this->buildNamespace($command->getOptions('table')), $query);
         $datas = $this->cursorToArray($cursor);
+
+        return $datas;
+    }
+
+
+    protected function cursorToArray($cursor)
+    {
+
+        $datas = [];
+        foreach ($cursor as $document) {
+            $document = json_decode(json_encode($document),true);
+            $datas[] = $document;
+        }
 
         return $datas;
     }
@@ -321,12 +315,12 @@ class MongodbDbConnection extends DbConnection
      * @param NosqlCommand $command
      * @return array
      */
-    public function scalar(string $table,array $pipelines = [],$command = [])
+    public function scalar($command = [])
     {
 
         $command = new \MongoDB\Driver\Command([
-            'aggregate' => $table,
-            'pipeline' => $pipelines,
+            'aggregate' => $command->getOptions('table'),
+            'pipeline' => $command->getOptions('pipelines'),
             'cursor' => (object)[]
         ]);
 
@@ -344,12 +338,12 @@ class MongodbDbConnection extends DbConnection
      * @param NosqlCommand $command
      * @return array
      */
-    public function aggregate(string $table,array $pipelines = [],$command = [])
+    public function aggregate($command = [])
     {
 
         $mongoCommand = new \MongoDB\Driver\Command([
-            'aggregate' => $table,
-            'pipeline' => $pipelines,
+            'aggregate' => $command->getOptions('table'),
+            'pipeline' => $command->getOptions('pipelines'),
             'cursor' => (object)[]
         ]);
 
