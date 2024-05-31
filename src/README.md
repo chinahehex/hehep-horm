@@ -1067,7 +1067,6 @@ $datas = [
     ['username'=>'admin1','password'=>'123123','tel'=>'1351111' . rand(10000,99999)],
     ['username'=>'admin2','password'=>'123123','tel'=>'1351111' . rand(10000,99999)]
 ];
-
 $number = $db_conn->insertAll('web_admin_users',$datas);
 
 // 更新
@@ -1081,18 +1080,68 @@ $user =$db_conn->fetchOne('web_admin_users',['id'=>1]);
 
 // 查询多条记录
 $users = $db_conn->fetchAll('web_admin_users',['id'=>[1,2]]);
-
 $users = $db_conn->fetchAll('web_admin_users',['id'=>[1,2]],['order'=>['id'=>SORT_DESC]]);
-
 
 // 执行查询sql
 $users = $db_conn->querySql('select * from web_admin_users where id in (1,2)');
 
-
 // 执行更新sql
 $number = $db_conn->execSql('update web_admin_users set tel="135xxxxbbbb" where id = 2');
-
 $number = $db_conn->execSql('update web_admin_users set tel=:tel where id = 2',['tel'=>'135xxxx' .  rand(10000,99999)]);
+```
+## 表(queryTable)操作模式
+```php
+// 设置默认db key 
+$this->hdbsession->setDb('hehe1');
+
+$number = $this->hdbsession->setTable('web_admin_users')
+    ->setData(['username'=>"okb",'password'=>'123123','tel'=>'135xxxxxxxx','realName'=>'hehex'])->addOne();
+
+// 批量插入
+$datas = [
+    ['username'=>'admin1','password'=>'123123','tel'=>'1351111' . rand(10000,99999)],
+    ['username'=>'admin2','password'=>'123123','tel'=>'1351111' . rand(10000,99999)]
+];
+
+$number = $this->hdbsession->setTable('web_admin_users')
+    ->setData($datas)->addAll();
+
+// 更新
+$number = $this->hdbsession->setTable('web_admin_users')
+    ->setData(['tel'=>'135xxxx' .  rand(10000,99999)])
+    ->setWhere(['username'=>'admin'])
+    ->updateOne();
+
+$number = $this->hdbsession->setTable('web_admin_users')
+    ->setData(['tel'=>'135xxxb' .  rand(10000,99999)])
+    ->setWhere(['username'=>'admin'])
+    ->updateAll();
+
+$number = $this->hdbsession->setTable('web_admin_users')
+    ->setWhere(['username'=>'hello'])
+    ->deleteOne();
+
+// 查询一条记录
+$user = $this->hdbsession->setTable('web_admin_users')
+    ->setWhere(['id'=>1])->fetchOne();
+
+// 查询多条记录
+$users = $this->hdbsession->setTable('web_admin_users')
+    ->setWhere(['id'=>[1,2]])
+    ->fetchAll();
+
+// 查询多条记录
+$users = $this->hdbsession->setTable('web_admin_users')
+    ->setWhere(['id'=>[1,2]])
+    ->setOrder(['id'=>SORT_DESC])
+    ->fetchAll();
+
+// 执行查询sql
+$users = $this->hdbsession->querySql('select * from web_admin_users where id in (1,2)');
+
+// 执行更新sql
+$number = $this->hdbsession->execSql("update web_admin_users set tel='135xxxxbbbb' where id = 2");
+$number = $this->hdbsession->execSql('update web_admin_users set tel=:tel where id = 2',['tel'=>'135xxxx' .  rand(10000,99999)]);
 ```
 
 

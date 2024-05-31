@@ -15,7 +15,7 @@ class OciCurdTest extends CurdTest
 
     protected function tearDown()
     {
-        //static::clearDb();
+        static::clearDb();
     }
 
     public function testAdd()

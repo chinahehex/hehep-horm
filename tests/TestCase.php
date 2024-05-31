@@ -106,13 +106,14 @@ class TestCase extends \PHPUnit\Framework\TestCase
 
     protected static function clearDb($dbs = [])
     {
+
         if (!empty($dbs)) {
             $clean_dbs = $dbs;
         } else {
             $clean_dbs = static::$dbs;
         }
-
         foreach ($clean_dbs as  $db_name=>$dbconfig) {
+            var_dump("dddd");
             if (in_array($db_name,['hehe','mysql','sys','hehe',])) {
                 continue;
             }
@@ -158,6 +159,16 @@ class TestCase extends \PHPUnit\Framework\TestCase
                 $mongoCommand = new \MongoDB\Driver\Command(['dropDatabase'=>1]);
                 $cursor = $pdo->executeCommand($db_name, $mongoCommand);
                 //var_dump($cursor);
+            } else if (isset($dbconfig['driver']) && $dbconfig['driver'] == 'oci') {
+
+                $pdo = static::getPdo($dbconfig['driver'],'oci');
+                $tables = ['web_admin_users','web_admin_user_role'];
+                foreach ($tables as $table) {
+                    $reuslt = $pdo->exec("DROP TABLE {$table}");
+                    var_dump($reuslt);
+                }
+
+                //var_dump($cursor);
             } else {
                 $pdo = static::getPdo($dbconfig['driver'],$db_name);
                 $pdo->exec("DROP DATABASE IF EXISTS `$db_name`");
@@ -180,13 +191,14 @@ class TestCase extends \PHPUnit\Framework\TestCase
                 $result = $pdo->exec($createDbSql);
                 unset($pdo);
             } else if (isset($dbconfig['driver']) && $dbconfig['driver'] == 'oci') {
-                $createDbSql = "Create database {$db_name}";
                 // 执行创建数据库的SQL语句
+                //var_dump("dddd");
                 $pdo = static::getPdo($dbconfig['driver'],static::$db_config['oci_dbname']);
+                var_dump($pdo);
                 //$result = $pdo->exec($createDbSql);
 //                var_dump($pdo->errorInfo());
 //                var_dump($createDbSql);
-                unset($pdo);
+                //unset($pdo);
             } else if (isset($dbconfig['driver']) && $dbconfig['driver'] == 'mongo') {
                 $createDbSql = "use {$db_name}";
                 // 执行创建数据库的SQL语句
@@ -237,10 +249,6 @@ class TestCase extends \PHPUnit\Framework\TestCase
 
         $dbconfig = array_merge($def_dbconfig,$dbconfig);
 
-        if ($dbconfig['driver'] == 'oci') {
-            $dbconfig['username'] = static::$db_config['oci_user'];
-            $dbconfig['password'] = static::$db_config['oci_pwd'];
-        }
 
         static::$_hdbsession->addDb($db_alias,$dbconfig);
     }
