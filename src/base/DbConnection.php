@@ -26,7 +26,7 @@ class DbConnection extends BaseConnection
 	 *</pre>
 	 * @var PDO
 	 */
-    protected $conn    = null;
+    protected $conn = null;
 
 	/**
 	 * 事务指令数
@@ -420,7 +420,7 @@ class DbConnection extends BaseConnection
      *</pre>
      * @return array
      */
-    private function getResult(PDOStatement $pdoStatement)
+    protected function getResult(PDOStatement $pdoStatement)
     {
         //返回数据集
         $result = $pdoStatement->fetchAll(PDO::FETCH_ASSOC);
@@ -572,7 +572,7 @@ class DbConnection extends BaseConnection
      */
     public function execSql(string $sql,array $params = [])
     {
-        $query = (new Query())->setCommand($sql,$params);
+        $query = (new Query())->setRawCommand($sql,$params);
         $queryCommand = $this->getQueryBuilder()->buildRawCommand($query);
         $pdoStatement = $this->executeCommand($queryCommand);
 
@@ -586,7 +586,7 @@ class DbConnection extends BaseConnection
      */
     public function querySql(string $sql,array $params = [])
     {
-        $query = (new Query())->setCommand($sql,$params);
+        $query = (new Query())->setRawCommand($sql,$params);
         $queryCommand = $this->getQueryBuilder()->buildRawCommand($query);
         $pdoStatement = $this->executeCommand($queryCommand);
 

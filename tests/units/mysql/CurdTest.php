@@ -9,7 +9,7 @@ class CurdTest extends TestCase
     protected static $db_driver = 'mysql';
     protected function setUp()
     {
-        parent::setUp();
+        $this->hdbsession = static::getDbsession();
         static::makeDb('hehe1','hehe_test','hehe.sql');
     }
 
@@ -57,6 +57,9 @@ class CurdTest extends TestCase
 
         $result = AdminUserEntity::addAll($datas);
         $this->assertTrue($result == 2);
+
+        $userId = AdminUserEntity::asId()->addOne(['username'=>"hehe3",'password'=>'123123','tel'=>'135xxxxxxxx','realName'=>'hehex']);
+        $this->assertTrue($userId > 0);
     }
 
     public function testUpdate()
@@ -80,6 +83,9 @@ class CurdTest extends TestCase
         $adminUserEntity = AdminUserEntity::get(1);
         $this->assertEquals("hehe1",$adminUserEntity->username);
         $this->assertEquals(1,$adminUserEntity['id']);
+
+        $adminUserEntity = AdminUserEntity::fetchOne(['id'=>10]);
+        $adminUserEntitys = AdminUserEntity::fetchAll(['id'=>10]);
 
         $adminUserEntity = AdminUserEntity::setWhere(['id'=>2])->fetchOne();
         $this->assertEquals("admin",$adminUserEntity->username);
@@ -203,26 +209,26 @@ class CurdTest extends TestCase
 
     public function testColumnQuery()
     {
-        $user = AdminUserEntity::setWhere(['id'=>1])->setSelect("id,tel")->fetchOne();
+        $user = AdminUserEntity::setWhere(['id'=>1])->setField("id,tel")->fetchOne();
         $this->assertTrue((isset($user['id']) && isset($user['tel']) && !isset($user['username'])));
 
-        $user = AdminUserEntity::setWhere(['id'=>1])->setSelect(['id','tel'])->fetchOne();
+        $user = AdminUserEntity::setWhere(['id'=>1])->setField(['id','tel'])->fetchOne();
         $this->assertTrue((isset($user['id']) && isset($user['tel']) && !isset($user['username'])));
 
-        $userEntitys = AdminUserEntity::setWhere(['id'=>1])->setSelect("id,tel")->fetchAll();
+        $userEntitys = AdminUserEntity::setWhere(['id'=>1])->setField("id,tel")->fetchAll();
         foreach ($userEntitys as $user) {
             $this->assertTrue((isset($user['id']) && isset($user['tel']) && !isset($user['username'])));
         }
 
-        $userEntitys = AdminUserEntity::setWhere(['id'=>1])->setSelect(['id','tel'])->fetchAll();
+        $userEntitys = AdminUserEntity::setWhere(['id'=>1])->setField(['id','tel'])->fetchAll();
         foreach ($userEntitys as $user) {
             $this->assertTrue((isset($user['id']) && isset($user['tel']) && !isset($user['username'])));
         }
 
-        $user = AdminUserEntity::setWhere(['id'=>1])->setSelect(['id'=>'user_id','tel'])->fetchOne();
+        $user = AdminUserEntity::setWhere(['id'=>1])->setField(['id'=>'user_id','tel'])->fetchOne();
         $this->assertTrue((isset($user['user_id']) && isset($user['tel']) && !isset($user['id'])));
 
-        $user = AdminUserEntity::setWhere(['id'=>1])->setSelect(['id','tel',['(status+1) as age']])->fetchOne();
+        $user = AdminUserEntity::setWhere(['id'=>1])->setField(['id','tel',['(status+1) as age']])->fetchOne();
         $this->assertTrue((isset($user['id']) && isset($user['tel']) && isset($user['age'])));
 
 
@@ -269,20 +275,20 @@ class CurdTest extends TestCase
 
     public function testAsQuery()
     {
-        $users_query = AdminUserEntity::setSelect('id')->setWhere(['id'=>[1,2,3,4],'status'=>1])->asQuery()->fetchAll();
+        $users_query = AdminUserEntity::setField('id')->setWhere(['id'=>[1,2,3,4],'status'=>1])->asQuery()->fetchAll();
         $users = AdminUserEntity::setWhere(['id'=>['in',$users_query]])->fetchAll();
         $this->assertTrue(count($users) == 2 && in_array($users[0]['id'],[1,2]) && in_array($users[1]['id'],[1,2]));
     }
 
     public function testLimit()
     {
-        $users = AdminUserEntity::setSelect('id')->setWhere(['id'=>[1,2,3,4],'status'=>1])->setLimit(1)->fetchAll();
+        $users = AdminUserEntity::setField('id')->setWhere(['id'=>[1,2,3,4],'status'=>1])->setLimit(1)->fetchAll();
         $this->assertTrue(count($users) == 1 && in_array($users[0]['id'],[1,2]));
     }
 
     public function testDistinct()
     {
-        $users = AdminUserEntity::setSelect('tel')->setWhere(['id'=>[1,2,3,4],'status'=>1])->setDistinct()->fetchAll();
+        $users = AdminUserEntity::setField('tel')->setWhere(['id'=>[1,2,3,4],'status'=>1])->setDistinct()->fetchAll();
         $this->assertTrue(count($users) == 2 && in_array($users[0]['tel'],['13564768841','13564768842'])&& in_array($users[1]['tel'],['13564768841','13564768842']));
     }
 
@@ -296,7 +302,7 @@ class CurdTest extends TestCase
     public function testJoin()
     {
         $users = AdminUserEntity::setAlias('u')
-            ->setSelect('u.*,r.roleName')
+            ->setField('u.*,r.roleName')
             ->setJoin(['{{%admin_user_role}}','r'],['u.roleId'=>['raw','r.id']])
             ->setWhere(['u.id'=>[1,2]])->fetchAll();
 
@@ -328,6 +334,8 @@ class CurdTest extends TestCase
 
     public function testAlias()
     {
+        $users = AdminUserEntity::setField(['tel','realName'=>['as','name']])->fetchAll();
+        $users = AdminUserEntity::setField(['tel','id'=>['as',['total','count']]])->setGroup('tel')->fetchAll();
         // 主表别名
         $users = AdminUserEntity::setWhere(['adu.id'=>[1,2]])->setAlias('adu')->fetchAll();
         // # 符号代替主表别名
@@ -336,19 +344,16 @@ class CurdTest extends TestCase
         // 如未设置主表别名,系统会自动会剔除"#."
         $users = AdminUserEntity::setWhere(['#.id'=>[1,2]])->fetchAll();
 
-        $users = AdminUserEntity::setWhere(['#.id'=>[1,2]])->setAlias('user')->setSelect('#.*')
+        $users = AdminUserEntity::setWhere(['#.id'=>[1,2]])->setAlias('user')->setField('#.*')
             ->setJoin("{{%admin_user_role}} as role",['#.roleId'=>['raw','role.id']])->fetchAll();
 
-        $users = AdminUserEntity::setWhere(['#.id'=>[1,2]])->setAlias('user')->setSelect('#.*')
+        $users = AdminUserEntity::setWhere(['#.id'=>[1,2]])->setAlias('user')->setField('#.*')
             ->setJoin("{{%admin_user_role}} as role",['role.id'=>['raw','#.roleId']])->fetchAll();
 
         $users = AdminUserEntity::setWhere(['#.id'=>[1,2,3,4]])->setAlias('adu')->setWith('role',true)->fetchAll();
         foreach ($users as $user) {
             $this->assertTrue(isset($user['role']['roleName']));
         }
-
-
-
     }
 
     public function testPolymerization()
@@ -380,20 +385,20 @@ class CurdTest extends TestCase
     public function testGroup()
     {
 
-        $users = AdminUserEntity::setSelect('tel')->setWhere(['id'=>[1,2,3,4]])->setGroup('tel')->fetchAll();
+        $users = AdminUserEntity::setField('tel')->setWhere(['id'=>[1,2,3,4]])->setGroup('tel')->fetchAll();
         $this->assertTrue(count($users) == 2);
 
-        $users = AdminUserEntity::setSelect('tel,status')->setWhere(['id'=>[1,2,3,4]])->setGroup('tel,status')->fetchAll();
+        $users = AdminUserEntity::setField('tel,status')->setWhere(['id'=>[1,2,3,4]])->setGroup('tel,status')->fetchAll();
         $this->assertTrue(count($users) == 3);
 
-        $users = AdminUserEntity::setSelect('tel')->setWhere(['id'=>[1,2,3,4]])->setGroup('tel,status')->setHaving(['status'=>0])->fetchAll();
+        $users = AdminUserEntity::setField('tel')->setWhere(['id'=>[1,2,3,4]])->setGroup('tel,status')->setHaving(['status'=>0])->fetchAll();
         $this->assertTrue(count($users) == 1);
 
-        $users = AdminUserEntity::setSelect('tel')->setWhere(['id'=>[1,2,3,4]])->setGroup('tel,status,roleId')
+        $users = AdminUserEntity::setField('tel')->setWhere(['id'=>[1,2,3,4]])->setGroup('tel,status,roleId')
             ->setAndHaving(['status'=>0,'roleId'=>['>',0]])->fetchAll();
         $this->assertTrue(count($users) == 2);
 
-        $users = AdminUserEntity::setSelect('tel')->setWhere(['id'=>[1,2,3,4]])->setGroup('tel,status,roleId')
+        $users = AdminUserEntity::setField('tel')->setWhere(['id'=>[1,2,3,4]])->setGroup('tel,status,roleId')
             ->setOrHaving(['status'=>0,'roleId'=>['>',0]])->fetchAll();
 
         $this->assertTrue(count($users) == 4);

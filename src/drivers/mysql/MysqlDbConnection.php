@@ -22,7 +22,7 @@ class MysqlDbConnection extends DbConnection
      *<pre>
      *  略
      *</pre>
-     * @var BaseQueryBuilder
+     * @var MysqlQueryBuilder
      */
     private $builder;
 
@@ -32,9 +32,9 @@ class MysqlDbConnection extends DbConnection
      *<pre>
      *  略
      *</pre>
-     * @return BaseQueryBuilder
+     * @return MysqlQueryBuilder
      */
-    public function getQueryBuilder()
+    public function getQueryBuilder():MysqlQueryBuilder
     {
         if ($this->builder === null) {
             $this->builder = $this->createQueryBuilder();
@@ -80,5 +80,5 @@ class MysqlDbConnection extends DbConnection
         return $dsn;
     }
 
-	
+
 }

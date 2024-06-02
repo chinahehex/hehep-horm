@@ -36,7 +36,7 @@ class PgsqlCurdTest extends CurdTest
     public function testJoin()
     {
         $users = AdminUserEntity::setAlias('u')
-            ->setSelect('u.*,r."roleName"')
+            ->setField('u.*,r."roleName"')
             ->setJoin(['{{%admin_user_role}}','r'],['u."roleId"'=>['raw','r.id']])
             ->setWhere(['u.id'=>[1,2]])->fetchAll();
 
@@ -49,20 +49,20 @@ class PgsqlCurdTest extends CurdTest
     public function testGroup()
     {
 
-        $users = AdminUserEntity::setSelect('tel')->setWhere(['id'=>[1,2,3,4]])->setGroup('tel')->fetchAll();
+        $users = AdminUserEntity::setField('tel')->setWhere(['id'=>[1,2,3,4]])->setGroup('tel')->fetchAll();
         $this->assertTrue(count($users) == 2);
 
-        $users = AdminUserEntity::setSelect('tel,status')->setWhere(['id'=>[1,2,3,4]])->setGroup('tel,status')->fetchAll();
+        $users = AdminUserEntity::setField('tel,status')->setWhere(['id'=>[1,2,3,4]])->setGroup('tel,status')->fetchAll();
         $this->assertTrue(count($users) == 3);
 
-        $users = AdminUserEntity::setSelect('tel')->setWhere(['id'=>[1,2,3,4]])->setGroup('tel,status')->setHaving(['status'=>0])->fetchAll();
+        $users = AdminUserEntity::setField('tel')->setWhere(['id'=>[1,2,3,4]])->setGroup('tel,status')->setHaving(['status'=>0])->fetchAll();
         $this->assertTrue(count($users) == 1);
 
-        $users = AdminUserEntity::setSelect('tel')->setWhere(['id'=>[1,2,3,4]])->setGroup('tel,status,"roleId"')
+        $users = AdminUserEntity::setField('tel')->setWhere(['id'=>[1,2,3,4]])->setGroup('tel,status,"roleId"')
             ->setAndHaving(['status'=>0,'roleId'=>['>',0]])->fetchAll();
         $this->assertTrue(count($users) == 2);
 
-        $users = AdminUserEntity::setSelect('tel')->setWhere(['id'=>[1,2,3,4]])->setGroup('tel,status,"roleId"')
+        $users = AdminUserEntity::setField('tel')->setWhere(['id'=>[1,2,3,4]])->setGroup('tel,status,"roleId"')
             ->setOrHaving(['status'=>0,'roleId'=>['>',0]])->fetchAll();
 
         $this->assertTrue(count($users) == 4);

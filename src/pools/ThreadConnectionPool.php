@@ -1,6 +1,7 @@
 <?php
 namespace horm\pools;
 
+use horm\base\BaseConnection;
 use horm\base\DbConnection;
 
 /**
@@ -145,7 +146,7 @@ class ThreadConnectionPool extends ConnectionPool
      *</pre>
      * @return \horm\base\DbConnection
      */
-    public function releaseConnection(DbConnection $dbConnection)
+    public function releaseConnection(BaseConnection $dbConnection)
     {
         $this->_useingNum--;
 

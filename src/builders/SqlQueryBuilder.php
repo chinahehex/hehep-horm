@@ -29,7 +29,7 @@ class SqlQueryBuilder extends BaseQueryBuilder
      *</pre>
      * @var string
      */
-    protected $insertSql = '%INSERT% INTO %TABLE% (%FIELD%) VALUES (%DATA%)';
+    protected $insertSql = 'INSERT INTO %TABLE% (%FIELD%) VALUES (%DATA%)';
 
     /**
      * 更新sql模板
@@ -75,11 +75,9 @@ class SqlQueryBuilder extends BaseQueryBuilder
             }
         }
 
-        $replace = $query->getReplace() ? true : false;
         $sql = str_replace(
-            ['%INSERT%', '%TABLE%', '%FIELD%', '%DATA%'],
+            ['%TABLE%', '%FIELD%', '%DATA%'],
             [
-                $replace ? 'REPLACE' : 'INSERT',
                 $this->parseTable($query,$query->getTable()),
                 implode(' , ', array_map(function($field) use($query){return $this->parseColumnName($query,$field);},$fields)),
                 implode(' , ', $values),
@@ -91,24 +89,43 @@ class SqlQueryBuilder extends BaseQueryBuilder
     }
 
     /**
-     * 生成批量插入
-     *<B>说明：</B>
-     *<pre>
-     *  略
-     *</pre>
-     * @param Query $query 命令对象
-     * @return array
+     * 批量插入记录
+     * @param Query $query 数据
+     * true 启用,false 禁用
+     * @return bool|int|void
      */
     public function insertAll(Query $query)
     {
-        $queryList = [];
+        //批量插入数据，第一个参数必须是数组
         $datas = $query->getData();
-        foreach ($datas as $data) {
-            $insertQuery = $query->cloneQuery(['data'=>$data]);
-            $queryList[] = $this->insert($insertQuery);
+
+        if (!is_array($datas[0])) {
+            return false;
         }
 
-        return $queryList;
+        //读取字段名数组
+        $fields = array_keys($datas[0]);
+        //格式化字段名，每个$fields 元素都调用parseKey 方法
+        //array_walk($fields, array($this, 'parseKey'));
+        $values  =  array();
+        foreach ($datas as $data) {
+            $value   =  [];
+            foreach ($data as $columnName=>$columnValue){
+                if (is_array($columnValue)) {
+                    $operator = $columnValue[0];
+                    $value[] = $this->callExpressionMethod($query,$operator,$columnName,$columnValue[1]);
+                } else {
+                    $value[] = $this->buildColumnValue($query,$columnName,$columnValue);
+                }
+            }
+
+            $values[]    = '('.implode(',', $value).')';
+        }
+
+        $sql   =  'INSERT INTO ' . $this->parseTable($query,$query->getTable())
+            . ' ('.implode(',', array_map(function($field)use($query){return $this->parseColumnName($query,$field);},$fields)).') VALUES '.implode(',',$values);
+
+        return $sql;
     }
 
     /**
@@ -195,7 +212,9 @@ class SqlQueryBuilder extends BaseQueryBuilder
         $methods = ['count'=>'count','min'=>'min','max'=>'max','avg'=>'avg','sum'=>'sum'];
         if (!empty($method) && isset($methods[$method])) {
             $method = $methods[$method];
-            $field = $method .'(' . $query->getField() . ') as __result';
+            //$field = $method .'(' . $query->getField() . ') as ' .$this->parseColumnName($query,"__result");
+            $name = $query->getField();
+            $field[$name] = ['as',['__result',$method]];
             $query->setField($field);
         }
 
@@ -230,10 +249,10 @@ class SqlQueryBuilder extends BaseQueryBuilder
      *  略
      *</pre>
      * @param Query $query Query 对象
-     * @param string $sql sql语句
+     * @param string $sql_tpl sql模板
      * @return string
      */
-    public function parseSql(Query $query,$sql)
+    public function parseSql(Query $query,$sql_tpl)
     {
         $sql   = str_replace(
             ['%TABLE%','%DISTINCT%','%FIELD%','%ALIAS%','%JOIN%','%WHERE%','%GROUP%','%HAVING%','%ORDER%','%LIMIT%','%UNION%','%COMMENT%'],
@@ -249,7 +268,7 @@ class SqlQueryBuilder extends BaseQueryBuilder
                 $this->parseOrder($query,$query->getOrder()),
                 $this->parseLimit($query,$query->getLimit(),$query->getOffset()),
                 $this->parseUnion($query,$query->getUnion()),
-            ],$sql);
+            ],$sql_tpl);
 
         return $sql;
     }
@@ -506,7 +525,8 @@ class SqlQueryBuilder extends BaseQueryBuilder
                 $joinType = ' LEFT JOIN ';
             }
 
-            $joins[$i] = " $joinType $readTable";
+            list($table_name,$table_alias) = DbUtil::splitAlias($readTable);
+            $joins[$i] = " $joinType " . $this->parseColumnName($query,$table_name) . $this->parseAlias($query,$table_alias);
             if (isset($on)) {
                 $condition =  $this->parseWhere($query,$on,'ON');
                 if ($condition !== '') {
@@ -566,17 +586,19 @@ class SqlQueryBuilder extends BaseQueryBuilder
      * @param string|array $group
      * @return string
      */
-    protected function parseGroup(Query $query,$group = [])
+    protected function parseGroup(Query $query,$groups = [])
     {
-        if (empty($group)) {
+        if (empty($groups)) {
             return '';
         }
 
-        if (is_string($group)) {
-            $group = explode(',',$group);
+        if (is_string($groups)) {
+            $groups = explode(',',$groups);
         }
 
-        return !empty($group)? ' group by ' . implode(',',$group) : '';
+        $sql_groups = array_map(function($field)use($query){return $this->parseColumnName($query,$field);},$groups);
+
+        return !empty($sql_groups)? ' group by ' . implode(',',$sql_groups) : '';
     }
 
     /**
@@ -811,6 +833,7 @@ class SqlQueryBuilder extends BaseQueryBuilder
 
         //  支持子查询
         if ($values instanceof Query) {
+            $columnName = $this->parseColumnName($query,$columnName);
             $buildSql = " {$columnName} $operator ({$this->buildSelectSql($values)})";
         } else {
             if (is_string($values)) {
@@ -877,6 +900,7 @@ class SqlQueryBuilder extends BaseQueryBuilder
         }
 
         if ($columnValue instanceof Query) {
+            $columnName = $this->parseColumnName($query,$columnName);
             $buildSql = " {$columnName} $operator ({$this->buildSelectSql($columnValue)})";
         } else {
             $buildSql = $this->buildColumnExpression($query,$columnName,$columnValue,$operator);

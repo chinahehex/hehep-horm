@@ -2,7 +2,7 @@
 namespace  horm\base;
 
 /**
- * sql 语句构建类
+ * 命令构建基类
  *<B>说明：</B>
  *<pre>
  *  1、所有操作数据库都必须事先生成sql
@@ -172,7 +172,7 @@ class BaseQueryBuilder
                 list($tb_alias,$col_name) = explode('.',$column_name);
                 return $this->formatColumnName($query,$table_alias) . '.'. $this->formatColumnName($query,$col_name);
             } else {
-                return str_replace('#.','',$column_name);
+                return $this->formatColumnName($query,str_replace('#.','',$column_name));
             }
         } else {
             if (strpos($column_name,'.') !== false) {
@@ -401,7 +401,7 @@ class BaseQueryBuilder
                 list($tableName,$tableAlias) = $table;
                 // 普通字符串
                 $table = $this->getTableName($tableName);
-                $table_sql = $this->parseColumnName($query,$table) . ' AS ' . $this->parseColumnName($query,$tableAlias);
+                $table_sql = $this->parseColumnName($query,$table) . $this->parseAlias($query,$tableAlias);
             } else {
                 // 普通字符串
                 $table = $this->getTableName($table);
@@ -411,7 +411,6 @@ class BaseQueryBuilder
 
         return $table_sql;
     }
-
 
     /**
      * 获取真实表名
@@ -490,5 +489,26 @@ class BaseQueryBuilder
             },
             $sql
         );
+    }
+
+    /**
+     * 生成批量插入
+     *<B>说明：</B>
+     *<pre>
+     *  略
+     *</pre>
+     * @param Query $query 命令对象
+     * @return array
+     */
+    public function insertAll(Query $query)
+    {
+        $queryList = [];
+        $datas = $query->getData();
+        foreach ($datas as $data) {
+            $insertQuery = $query->cloneQuery(['data'=>$data]);
+            $queryList[] = $this->insert($insertQuery);
+        }
+
+        return $queryList;
     }
 }

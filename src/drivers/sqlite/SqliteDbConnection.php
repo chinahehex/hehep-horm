@@ -1,7 +1,6 @@
 <?php
 namespace  horm\drivers\sqlite;
 
-use horm\base\BaseQueryBuilder;
 use horm\base\DbConnection;
 
 
@@ -22,7 +21,7 @@ class SqliteDbConnection extends DbConnection
      *<pre>
      *  略
      *</pre>
-     * @var BaseQueryBuilder
+     * @var SqliteQueryBuilder
      */
     private $builder = null;
 
@@ -32,9 +31,9 @@ class SqliteDbConnection extends DbConnection
      *<pre>
      *  略
      *</pre>
-     * @return BaseQueryBuilder
+     * @return SqliteQueryBuilder
      */
-    public function getQueryBuilder()
+    public function getQueryBuilder():SqliteQueryBuilder
     {
         if ($this->builder === null) {
             $this->builder = $this->createQueryBuilder();
@@ -49,9 +48,9 @@ class SqliteDbConnection extends DbConnection
      *<pre>
      *  略
      *</pre>
-     * @return BaseQueryBuilder
+     * @return SqliteQueryBuilder
      */
-    public function createQueryBuilder()
+    public function createQueryBuilder():SqliteQueryBuilder
     {
         return new SqliteQueryBuilder($this);
     }
@@ -70,5 +69,5 @@ class SqliteDbConnection extends DbConnection
 
         return $dsn;
     }
-	
+
 }

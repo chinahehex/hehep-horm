@@ -54,7 +54,7 @@ class AdminUserinfoShardDbEntity extends Entity
      */
     public static function dbShardRule()
     {
-        return new ModShardRule(3,'userId');
+        return new ModShardRule(2,'userId');
     }
 
     /**
@@ -84,7 +84,7 @@ class AdminUserinfoShardDbEntity extends Entity
      */
     public static function autoIncrement()
     {
-        return true;
+        return 'web_admin_users_info_seq';
     }
 
     /**

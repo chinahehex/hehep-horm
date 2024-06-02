@@ -32,14 +32,19 @@ trait ShardDbTrait
 	 * 	boolean:false sql 错误
 	 *</pre>
 	 */
-	public function addInternal($query,$queryType = '')
+	public function addInternal(Query $query,$queryType = '')
 	{
+		if ($query->asQueryStatus()) {
+			$query->asWrite(true)->setBuildParams([$query]);
+			return $query;
+		}
+
         $affected = 0;
         $addResult = true;//更新状态
 		$queryList = $this->dataShardByDb($query);
 
 		foreach ($queryList as $cmdQuery) {
-            $cmdQuery->toUpdate(true);
+            $cmdQuery->asWrite(true);
 			$cmdQuery->setBuildParams([$cmdQuery]);
 			$result = $this->executeCommand($cmdQuery);
 			if ($result === false) {
@@ -74,15 +79,19 @@ trait ShardDbTrait
 	 * 		boolean:sql 错误
 	 *</pre>
 	 */
-	public function updateInternal($query,$queryType = '')
+	public function updateInternal(Query $query,$queryType = '')
 	{
+		if ($query->asQueryStatus()) {
+			$query->asWrite(true)->setBuildParams([$query]);
+			return $query;
+		}
+
         $updateResult = true;//更新状态
 	    $affected = 0;//影响行数
-
 		$queryList = $this->whereShardByDb($query);
 
 		foreach ($queryList as $cmdQuery) {
-            $cmdQuery->toUpdate(true);
+            $cmdQuery->asWrite(true);
 			$cmdQuery->setBuildParams([$cmdQuery]);
 			$result = $this->executeCommand($cmdQuery);
 			if ($result === false) {
@@ -116,14 +125,19 @@ trait ShardDbTrait
 	 * 		boolean:sql 错误
 	 *</pre>
 	 */
-	public function deleteInternal($query,$queryType = '')
+	public function deleteInternal(Query $query,$queryType = '')
 	{
+		if ($query->asQueryStatus()) {
+			$query->asWrite(true)->setBuildParams([$query]);
+			return $query;
+		}
+
         $deleteResult = true;//更新状态
         $affected = 0;
 		$queryList = $this->whereShardByDb($query);
 
 		foreach ($queryList as $cmdQuery) {
-            $cmdQuery->toUpdate(true);
+            $cmdQuery->asWrite(true);
 			$cmdQuery->setBuildParams([$cmdQuery]);
 			$result = $this->executeCommand($cmdQuery);
 			if ($result === false) {
@@ -158,13 +172,18 @@ trait ShardDbTrait
 	 * 		boolean:sql 错误
 	 *</pre>
 	 */
-	public function queryInternal($query,$queryType = '')
+	public function queryInternal(Query $query,$queryType = '')
 	{
+		if ($query->asQueryStatus()) {
+			$query->asWrite(false)->setBuildParams([$query]);
+			return $query;
+		}
+
 		$queryList = $this->whereShardByDb($query);
 		$queryResult = [];
 
 		foreach ($queryList as $cmdQuery) {
-            $cmdQuery->toUpdate(false);
+            $cmdQuery->asWrite(false);
 			$cmdQuery->setBuildParams([$cmdQuery]);
 			$data = $this->queryCommand($cmdQuery);
 			if (!empty($data)) {
@@ -191,13 +210,18 @@ trait ShardDbTrait
 	 * 		boolean:sql 错误
 	 *</pre>
 	 */
-	public function queryScalarInternal($query ,$method = '')
+	public function queryScalarInternal(Query $query ,$method = '')
 	{
+		if ($query->asQueryStatus()) {
+			$query->asWrite(false)->setBuildParams([$query]);
+			return $query;
+		}
+
 		$queryList = $this->whereShardByDb($query);
 		$queryResult = [];
 
 		foreach ($queryList as $cmdQuery) {
-            $cmdQuery->toUpdate(false);
+            $cmdQuery->asWrite(false);
 			$cmdQuery->setBuildParams([$cmdQuery,$method]);
 			$data = $this->queryCommand($cmdQuery);
 			if (!empty($data)) {

@@ -113,7 +113,6 @@ class TestCase extends \PHPUnit\Framework\TestCase
             $clean_dbs = static::$dbs;
         }
         foreach ($clean_dbs as  $db_name=>$dbconfig) {
-            var_dump("dddd");
             if (in_array($db_name,['hehe','mysql','sys','hehe',])) {
                 continue;
             }
@@ -161,14 +160,16 @@ class TestCase extends \PHPUnit\Framework\TestCase
                 //var_dump($cursor);
             } else if (isset($dbconfig['driver']) && $dbconfig['driver'] == 'oci') {
 
-                $pdo = static::getPdo($dbconfig['driver'],'oci');
-                $tables = ['web_admin_users','web_admin_user_role'];
+                $pdo = static::getPdo($dbconfig['driver'],$db_name);
+                $tables = ['web_admin_users','web_admin_user_role','web_admin_users_info_0','web_admin_users_info_1','web_admin_users_info_2'];
+
+                $reuslt = $pdo->exec("DROP SEQUENCE \"web_admin_users_info_seq\"");
                 foreach ($tables as $table) {
-                    $reuslt = $pdo->exec("DROP TABLE {$table}");
-                    var_dump($reuslt);
+                    $reuslt = $pdo->exec("drop TABLE \"{$table}\"");
+                    $reuslt = $pdo->exec("DROP SEQUENCE \"{$table}_seq\"");
+                    //var_dump($reuslt);
                 }
 
-                //var_dump($cursor);
             } else {
                 $pdo = static::getPdo($dbconfig['driver'],$db_name);
                 $pdo->exec("DROP DATABASE IF EXISTS `$db_name`");
@@ -193,12 +194,11 @@ class TestCase extends \PHPUnit\Framework\TestCase
             } else if (isset($dbconfig['driver']) && $dbconfig['driver'] == 'oci') {
                 // 执行创建数据库的SQL语句
                 //var_dump("dddd");
-                $pdo = static::getPdo($dbconfig['driver'],static::$db_config['oci_dbname']);
-                var_dump($pdo);
+                $pdo = static::getPdo($dbconfig['driver'],$db_name);
                 //$result = $pdo->exec($createDbSql);
 //                var_dump($pdo->errorInfo());
 //                var_dump($createDbSql);
-                //unset($pdo);
+                unset($pdo);
             } else if (isset($dbconfig['driver']) && $dbconfig['driver'] == 'mongo') {
                 $createDbSql = "use {$db_name}";
                 // 执行创建数据库的SQL语句
@@ -232,6 +232,7 @@ class TestCase extends \PHPUnit\Framework\TestCase
         //$pdo->exec("USE " . $db_name);
         foreach ($sqlStatements as $sql) {
             $sql = str_replace('{{:shard}}',$table_shard,$sql);
+            $sql = str_replace('--#',';',$sql);
             // 跳过空语句
             if (trim($sql) !== '') {
                 // 使用PDO执行SQL语句
@@ -287,6 +288,7 @@ class TestCase extends \PHPUnit\Framework\TestCase
         foreach ($sqlStatements as $sql) {
             if ($shard != '') {
                 $sql = str_replace('{{:shard}}',$shard,$sql);
+                $sql = str_replace('--#',';',$sql);
             }
             // 跳过空语句
             if (trim($sql) !== '') {
@@ -310,12 +312,16 @@ class TestCase extends \PHPUnit\Framework\TestCase
         foreach ($sqlStatements as $sql) {
             if ($shard != '') {
                 $sql = str_replace('{{:shard}}',$shard,$sql);
+
             }
+
+            $sql = str_replace('--#',';',$sql);
             // 跳过空语句
             if (trim($sql) !== '') {
                 // 使用PDO执行SQL语句
                 $result = $pdo->exec($sql);
-                //var_dump($result);
+//                var_dump($result);
+//                var_dump($sql);
             }
         }
     }
@@ -334,7 +340,10 @@ class TestCase extends \PHPUnit\Framework\TestCase
         foreach ($sqlStatements as $sql) {
             if ($shard != '') {
                 $sql = str_replace('{{:shard}}',$shard,$sql);
+
             }
+
+            $sql = str_replace('--#',';',$sql);
             // 跳过空语句
             if (trim($sql) !== '') {
                 // 使用PDO执行SQL语句
@@ -358,6 +367,8 @@ class TestCase extends \PHPUnit\Framework\TestCase
             if ($shard != '') {
                 $sql = str_replace('{{:shard}}',$shard,$sql);
             }
+
+            $sql = str_replace('--#',';',$sql);
             // 跳过空语句
             if (trim($sql) !== '') {
                 // 使用PDO执行SQL语句

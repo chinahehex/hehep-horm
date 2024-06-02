@@ -32,9 +32,9 @@ class PgsqlDbConnection extends DbConnection
      *<pre>
      *  略
      *</pre>
-     * @return BaseQueryBuilder
+     * @return PgsqlQueryBuilder
      */
-    public function getQueryBuilder()
+    public function getQueryBuilder():PgsqlQueryBuilder
     {
         if ($this->builder === null) {
             $this->builder = $this->createQueryBuilder();
@@ -49,9 +49,9 @@ class PgsqlDbConnection extends DbConnection
      *<pre>
      *  略
      *</pre>
-     * @return BaseQueryBuilder
+     * @return PgsqlQueryBuilder
      */
-    public function createQueryBuilder()
+    public function createQueryBuilder():PgsqlQueryBuilder
     {
         return new PgsqlQueryBuilder($this);
     }

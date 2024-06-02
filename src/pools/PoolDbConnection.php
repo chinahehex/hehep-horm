@@ -16,12 +16,12 @@ trait PoolDbConnection
 
     protected $haspool = true;
 
-    public function setConnectionPool(ConnectionPool $connectionPool)
+    public function setConnectionPool(ConnectionPool $connectionPool):void
     {
         $this->connectionPool = $connectionPool;
     }
 
-    public function free()
+    public function free():void
     {
         if ($this->haspool) {
             $this->connectionPool->releaseConnection($this);

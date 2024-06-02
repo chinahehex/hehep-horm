@@ -3,6 +3,7 @@ namespace  horm\drivers\oci;
 
 use horm\base\BaseQueryBuilder;
 use horm\base\DbConnection;
+use horm\base\QueryCommand;
 
 
 /**
@@ -49,9 +50,9 @@ class OciDbConnection extends DbConnection
      *<pre>
      *  略
      *</pre>
-     * @return BaseQueryBuilder
+     * @return OciQueryBuilder
      */
-    public function createQueryBuilder()
+    public function createQueryBuilder():OciQueryBuilder
     {
         return new OciQueryBuilder($this);
     }
@@ -87,11 +88,15 @@ class OciDbConnection extends DbConnection
     public function getLastInsertID($sequence = '')
     {
         if(!empty($sequence)) {
-            $pdoStatement    = $this->conn->query("select {$sequence}.currval as id from dual");
-            $result = $pdoStatement->fetchColumn();
+            $cmd = new QueryCommand(['command'=>'select "'.$sequence.'".currval as "id" from dual']);
+            $pdoStatement = $this->executeCommand($cmd);
+            $result = $this->getResult($pdoStatement);
+            if (!empty($result)) {
+                return $result[0]['id'];
+            }
         }
 
-        return $result ?? null;
+        return null;
     }
 
 

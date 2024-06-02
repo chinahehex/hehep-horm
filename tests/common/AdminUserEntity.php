@@ -61,7 +61,7 @@ class AdminUserEntity extends Entity
      */
     public static function autoIncrement()
     {
-        return true;
+        return 'web_admin_users_seq';
     }
 
     /**

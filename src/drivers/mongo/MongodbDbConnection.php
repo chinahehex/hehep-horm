@@ -1,9 +1,11 @@
 <?php
 namespace  horm\drivers\mongo;
 
+use horm\base\BaseConnection;
 use horm\base\BaseQueryBuilder;
 use horm\base\DbConnection;
 use horm\base\NosqlCommand;
+use horm\pools\PoolDbConnection;
 use MongoDB\Driver\Manager;
 use Exception;
 
@@ -14,8 +16,9 @@ use Exception;
  *  略
  *</pre>
  */
-class MongodbDbConnection extends DbConnection
+class MongodbDbConnection extends BaseConnection
 {
+    use PoolDbConnection;
 
     /**
      * Builder 实例
@@ -70,17 +73,17 @@ class MongodbDbConnection extends DbConnection
      *<pre>
      *  略
      *</pre>
-     * @return BaseQueryBuilder
+     * @return MongoQueryBuilder
      */
-    public function createQueryBuilder()
+    public function createQueryBuilder():MongoQueryBuilder
     {
         return new MongoQueryBuilder($this);
     }
 
-    protected function parseDsn($config = [])
+    protected function parseDsn():string
     {
-        $dsn = 'mongodb://'.($config['username']?"{$config['username']}":'').($config['password']?":{$config['password']}@":'').
-            $config['host'].($config['port']?":{$config['port']}":'');
+        $dsn = 'mongodb://'.($this->config['username']?"{$this->config['username']}":'').($this->config['password']?":{$this->config['password']}@":'').
+            $this->config['host'].($this->config['port']?":{$this->config['port']}":'');
 
         return $dsn;
     }
@@ -98,8 +101,7 @@ class MongodbDbConnection extends DbConnection
     {
         if (is_null($this->conn)) {
             try {
-                $manager = new \MongoDB\Driver\Manager($this->parseDsn($this->config));
-                $this->conn = $manager;
+                $this->conn = new \MongoDB\Driver\Manager($this->parseDsn());
                 return $this->conn;
             } catch (\Exception $e) {
                 throw new Exception($e->getMessage());
@@ -129,7 +131,7 @@ class MongodbDbConnection extends DbConnection
         $command_options = $command->getOptions();
         $command_options['command'] = $command;
 
-        return $this->getMethodParams($method,$command_options);
+        return $this->getMethodParams(static::class,$method,$command_options);
     }
 
 
@@ -150,11 +152,8 @@ class MongodbDbConnection extends DbConnection
      *<pre>
      * 略
      *</pre>
-     * @param NosqlCommand $command  sql 命令对象
+     * @param NosqlCommand $command  sql命令对象
      * @return array
-     *<pre>
-     *  略
-     *</pre>
      */
     public function callQuery($command)
     {
@@ -164,7 +163,6 @@ class MongodbDbConnection extends DbConnection
         $result = false;
         $method = $command->getMethod();
         if ($method != '' && method_exists($this,$method)) {
-            //$result = call_user_func_array([$this,$method],[$command]);
             $result = call_user_func_array([$this,$method],$this->formatCommandMethodParams($command));
         } else {
             $result = $this->queryCmd($command);
@@ -181,9 +179,6 @@ class MongodbDbConnection extends DbConnection
      *</pre>
      * @param NosqlCommand $command sql 命令对象
      * @return array
-     *<pre>
-     *  略
-     *</pre>
      */
     public function callExecute($command)
     {
@@ -192,7 +187,6 @@ class MongodbDbConnection extends DbConnection
         $result = false;
         $method = $command->getMethod();
         if ($method != '' && method_exists($this,$method)) {
-            //$result = call_user_func_array([$this,$method],[$command]);
             $result = call_user_func_array([$this,$method],$this->formatCommandMethodParams($command));
         } else {
             $result = $this->execCmd($command);
@@ -248,7 +242,7 @@ class MongodbDbConnection extends DbConnection
     }
 
     /**
-     * 删除记录
+     * 更新记录
      *<B>说明：</B>
      *<pre>
      *  略

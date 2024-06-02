@@ -12,6 +12,29 @@ use horm\QueryTable;
  */
 class DbUtil
 {
+    /**
+     * 分离带as表名
+     *<B>说明：</B>
+     *<pre>
+     *  略
+     *</pre>
+     * @param string $alias 表名 比如user as name 、user
+     * @return array  表分离后的数组
+     *<pre>
+     *   $out = ['user','u'] user表名,u 表别名
+     *</pre>
+     */
+    public static function splitAlias(string $alias = ''):array
+    {
+        $preg =  '/^(.+)\s+AS\s+(.+)\s*.*/i';
+        preg_match ($preg, $alias,$alias_matches);
+
+        if (empty($alias_matches)) {
+            return [$alias,''];
+        } else {
+            return [$alias_matches[1],$alias_matches[2]];
+        }
+    }
 
     /**
      * 判断是否索引数组

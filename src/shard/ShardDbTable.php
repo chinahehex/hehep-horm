@@ -2,6 +2,7 @@
 namespace horm\shard;
 
 use horm\base\BaseTable;
+use horm\QueryTable;
 use horm\shard\base\ShardDbTableTrait;
 
 /**
@@ -11,7 +12,7 @@ use horm\shard\base\ShardDbTableTrait;
  * 略
  *</pre>
  */
-class ShardDbTable extends BaseTable
+class ShardDbTable extends QueryTable
 {
     use ShardDbTableTrait;
 }

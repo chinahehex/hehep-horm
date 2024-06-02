@@ -9,14 +9,14 @@ use horm\util\DbUtil;
 
 
 /**
- * 实体基类
+ * 数据实体基类
  *<B>说明：</B>
  *<pre>
  * 通过对象的方式操作数据
  *</pre>
  * @method static QueryTable setScope($scope,...$args)
  * @method static QueryTable setShard($shard_columns = [])
- * @method static QueryTable setSelect($fields = [])
+ * @method static QueryTable setField($fields = [])
  * @method static QueryTable setWhere($where = [], $params = [])
  * @method static QueryTable setTable($table = '')
  * @method static QueryTable setAlias($alias = '')
@@ -31,6 +31,7 @@ use horm\util\DbUtil;
  * @method static QueryTable setParam($params = null)
  * @method static QueryTable asArray($asArray = true)
  * @method static QueryTable asMaster($asMaster = true)
+ * @method static QueryTable asId()
  * @method static QueryTable queryCmd($queryCommand, $params = [])
  * @method static QueryTable execCmd($execCommand, $params = [])
  * @method static QueryTable querySql($querySql, $params = [])
@@ -46,17 +47,17 @@ use horm\util\DbUtil;
 class BaseEntity
 {
     /**
-     * 属性值
+     * 实体属性值集合
      *<B>说明：</B>
      *<pre>
      *  略
      *</pre>
      * @var array
      */
-    protected $_value = [];
+    protected $_values = [];
 
     /**
-     * 自增id
+     * id
      *<B>说明：</B>
      *<pre>
      *  略
@@ -76,9 +77,8 @@ class BaseEntity
      */
     protected static $_attrs = null;
 
-
     /**
-     * 分库规则
+     * 分库规则对象
      *<B>说明：</B>
      *<pre>
      *  略
@@ -98,7 +98,7 @@ class BaseEntity
     protected $_updateAttrs = [];
 
     /**
-     * 分库规则
+     * 分库规则对象
      *<B>说明：</B>
      *<pre>
      *  略
@@ -106,17 +106,6 @@ class BaseEntity
      * @var ShardRule
      */
     protected static $_tbShardRule = null;
-
-    /**
-     * 关系股则
-     *<B>说明：</B>
-     *<pre>
-     *  略
-     *</pre>
-     * @var array
-     */
-    protected static $refs = [];
-
 
     public function __construct($attrs = [])
     {
@@ -146,7 +135,7 @@ class BaseEntity
     }
 
     /**
-     * 定义db 管理
+     * 定义 db管理器
      * @return Dbsession
      */
     public static function dbSession()
@@ -189,7 +178,7 @@ class BaseEntity
     }
 
     /**
-     * 定义从库规则
+     * 定义主从库规则
      */
     public static function dbSlave()
     {
@@ -197,27 +186,47 @@ class BaseEntity
     }
 
     /**
-     * 表主键是否自增
+     * 是否自增
      *<B>说明：</B>
      *<pre>
-     *  略
+     * 返回true表示实体有自增id,
+     * 返回string,表示自增序列的名称
+     * 返回false 表示实体中没有自增列
      *</pre>
+     * @return bool|string true 表示实体有自增id,
      */
     public static function autoIncrement()
     {
         return false;
     }
 
+    /**
+     * 定义表分区方式
+     *<B>说明：</B>
+     *<pre>
+     * QueryTable::class 不分区
+     * ShardTable::class 分表
+     * ShardDb::class 分库
+     * ShardDbTable::class 分库分表
+     *</pre>
+     * @return string
+     */
     public static function queryTable()
     {
         return QueryTable::class;
     }
 
+    /**
+     * 定义主键列名
+     *<B>说明：</B>
+     *<pre>
+     *  略
+     *</pre>
+     */
     public static function pk()
     {
         return '';
     }
-
 
     /**
      * 设置属性值
@@ -231,7 +240,7 @@ class BaseEntity
     public function __set($name, $value):void
     {
         $this->_updateAttrs[] = $name;
-        $this->_value[$name] = $value;
+        $this->_values[$name] = $value;
     }
 
     /**
@@ -245,8 +254,8 @@ class BaseEntity
      */
     public function __get($name)
     {
-        if (isset($this->_value[$name])) {
-            return  $this->_value[$name];
+        if (isset($this->_values[$name])) {
+            return  $this->_values[$name];
         } else {
             return null;
         }
@@ -361,7 +370,9 @@ class BaseEntity
      */
     public function setValues($value = [])
     {
-        $this->_value = $value;
+        if (!is_null($value)) {
+            $this->_values = $value;
+        }
 
         return $this;
     }
@@ -381,12 +392,48 @@ class BaseEntity
             $this->setAttr($attrName);
         }
 
-        $this->_value = $attrs;
+        $this->_values = $attrs;
     }
 
     protected function setAttr($attrName)
     {
        $this->_updateAttrs[$attrName] = $attrName;
+    }
+
+    /**
+     * 添加数据
+     *<B>说明：</B>
+     *<pre>
+     * 略
+     *</pre>
+     * @param array $attrs 属性值
+     * @return int
+     */
+    public function add($attrs = null)
+    {
+
+        if (!is_null($attrs)) {
+            $this->setValues($attrs);
+        }
+
+        if (empty($this->_values)) {
+            return false;
+        }
+
+        $queryTable = static::getQueryTable();
+        $values =  static::attrToColumn($this->_values);
+        $result = $queryTable->setData($values)->addOne();
+
+        $id = static::pk();
+
+        // 判断是否读取自增id
+        if (!empty(static::autoIncrement())  && isset($id) && !isset($this->_values[$id])) {
+            $lastId = $queryTable->getLastId(static::autoIncrement());
+            $this->_values[$id] = $lastId;
+            $this->_id = $lastId;
+        }
+
+        return $result;
     }
 
     /**
@@ -432,38 +479,37 @@ class BaseEntity
     }
 
     /**
-     * 更新数据
+     * 批量添加
      *<B>说明：</B>
      *<pre>
      * 略
      *</pre>
-     * @param array $attrs 属性
-     * @param array $where 条件
-     * @param array $params 预处理参数
-     * @return boolean|int
+     * @param array $attrs 属性值列表
+     * @return int
      */
-    public static function updateAll($attrs,$where = [],$params = [])
+    public static function addOne($attrs = [])
     {
-        $values =  static::attrToColumn($attrs);
-        $sqlWhere = [];
-        $id = static::pk();
-        if (!empty($id) && isset($values[$id])) {
-            $sqlWhere = [
-                static::getPkColumn()=> $values[$id]
-            ];
-
-            unset($values[$id]);
-        }
-
-        $where = array_merge($sqlWhere,$where);
-        if (empty($where)) {
-            return false;
-        }
-
+        $attrs = static::attrToColumn($attrs);
         $queryTable = static::getQueryTable();
-        $result = $queryTable->setData($values)->setWhere($where)->addParams($params)->updateAll();
 
-        return $result;
+        return $queryTable->setData($attrs)->addOne();
+    }
+
+    /**
+     * 批量添加
+     *<B>说明：</B>
+     *<pre>
+     * 略
+     *</pre>
+     * @param array $listAttrs 属性值列表
+     * @return int
+     */
+    public static function addAll($listAttrs)
+    {
+        $listAttrs = static::attrsToColumns($listAttrs);
+        $queryTable = static::getQueryTable();
+
+        return $queryTable->setData($listAttrs)->addRows();
     }
 
     /**
@@ -502,83 +548,48 @@ class BaseEntity
     }
 
     /**
-     * 获取属性名
+     * 更新多条数据
      *<B>说明：</B>
      *<pre>
      * 略
      *</pre>
-     * @param array $attrs 属性值
-     * @return int
+     * @param array $attrs 属性
+     * @param array $where 条件
+     * @param array $params 预处理参数
+     * @return boolean|int
      */
-    public function add($attrs = null)
+    public static function updateAll($attrs,$where = [],$params = [])
     {
+        $values =  static::attrToColumn($attrs);
+        $sqlWhere = [];
+        $id = static::pk();
+        if (!empty($id) && isset($values[$id])) {
+            $sqlWhere = [
+                static::getPkColumn()=> $values[$id]
+            ];
 
-        if (!is_null($attrs)) {
-            $this->setValues($attrs);
+            unset($values[$id]);
         }
 
-        if (empty($this->_value)) {
+        $where = array_merge($sqlWhere,$where);
+        if (empty($where)) {
             return false;
         }
 
         $queryTable = static::getQueryTable();
-        $values =  static::attrToColumn($this->_value);
-        $result = $queryTable->setData($values)->addOne();
-
-        $id = static::pk();
-
-        // 判断是否读取自增id
-        if (static::autoIncrement() === true  && isset($id) && !isset($this->_value[$id])) {
-            $lastId = $queryTable->getLastId();
-            $this->_value[$id] = $lastId;
-            $this->_id = $lastId;
-        }
+        $result = $queryTable->setData($values)->setWhere($where)->addParams($params)->updateAll();
 
         return $result;
-    }
-
-    /**
-     * 批量添加
-     *<B>说明：</B>
-     *<pre>
-     * 略
-     *</pre>
-     * @param array $listAttrs 属性值列表
-     * @return int
-     */
-    public static function addAll($listAttrs)
-    {
-        $listAttrs = static::attrsToColumns($listAttrs);
-        $queryTable = static::getQueryTable();
-
-        return $queryTable->setData($listAttrs)->addRows();
-    }
-
-    /**
-     * 批量添加
-     *<B>说明：</B>
-     *<pre>
-     * 略
-     *</pre>
-     * @param array $attrs 属性值列表
-     * @return int
-     */
-    public static function addOne($attrs = [])
-    {
-        $attrs = static::attrToColumn($attrs);
-        $queryTable = static::getQueryTable();
-
-        return $queryTable->setData($attrs)->addOne();
     }
 
     /**
      * 实例化当前对象
      *<B>说明：</B>
      *<pre>
-     *  查询db数据,填充对象属性
+     *  从库拉取一条数据,填充对象属性
      *</pre>
      * @param string|array $condition 查询条件
-     * @return $this
+     * @return static
      */
     public static function get($condition = null)
     {
@@ -604,9 +615,9 @@ class BaseEntity
      * @param string|array $condition 查询条件
      * @param array $orders 排序规则
      * @param array $params 预处理参数
-     * @return static[]
+     * @return static
      */
-    public static function fetchOne($condition = null,$orders = [],$params = [])
+    public static function fetchOne($condition = null,$orders = [],$params = []):?self
     {
         $where = static::formatCondition($condition);
         $data = static::getQueryTable()->setWhere($where,$params)->setOrder($orders)->queryRow();
@@ -625,7 +636,7 @@ class BaseEntity
      * @param array $params 预处理参数
      * @return static[]
      */
-    public static function fetchAll($condition = null,$orders = [],$params = [])
+    public static function fetchAll($condition = null,$orders = [],$params = []):? array
     {
         $where = static::formatCondition($condition);
         $datas = static::getQueryTable()->setWhere($where,$params)->setOrder($orders)->queryRows();
@@ -668,7 +679,7 @@ class BaseEntity
      * @param array $params
      * @return integer
      */
-    public static function deleteAll($condition = [],$params = [])
+    public static function deleteAll($condition = [],array $params = [])
     {
         $where = static::formatCondition($condition);
         if ($where === null) {
@@ -690,7 +701,7 @@ class BaseEntity
      * @param array $params
      * @return integer
      */
-    public static function deleteOne($condition = [],$params = [])
+    public static function deleteOne($condition = [],array $params = [])
     {
         $where = static::formatCondition($condition);
         if ($where === null) {
@@ -746,7 +757,7 @@ class BaseEntity
      */
     protected function clear()
     {
-        $this->_value = [];
+        $this->_values = [];
     }
 
     /**
@@ -756,9 +767,9 @@ class BaseEntity
      * 略
      *</pre>
      * @param array $data 对象属性
-     * @return $this
+     * @return static
      */
-    public static function make($data = [])
+    public static function make($data = []):self
     {
         $entity  = new static();
         $entity->setValues($data);
@@ -773,9 +784,9 @@ class BaseEntity
      * 略
      *</pre>
      * @param array $column 表字段值
-     * @return $this
+     * @return static
      */
-    public static function makeByColumn($column)
+    public static function makeByColumn($column = []):self
     {
         $entity  = new static();
         $column = static::columnToAttr($column);
@@ -799,13 +810,13 @@ class BaseEntity
      */
     public function toArray()
     {
-        return $this->_value;
+        return $this->_values;
     }
 
     function __tostring()
     {
         //对象转化为json格式
-        return json_encode($this->_value,JSON_FORCE_OBJECT);
+        return json_encode($this->_values,JSON_FORCE_OBJECT);
     }
 
     /**
@@ -818,7 +829,7 @@ class BaseEntity
      */
     public function toColumnArray()
     {
-        return static::attrToColumn($this->_value);
+        return static::attrToColumn($this->_values);
     }
 
     /**
@@ -833,8 +844,8 @@ class BaseEntity
     protected function buildWhere()
     {
         $pk = static::pk();
-        if (isset($this->_value[$pk])) {
-            $where = [$pk=>$this->_value[$pk]];
+        if (isset($this->_values[$pk])) {
+            $where = [$pk=>$this->_values[$pk]];
         } else {
             $where = null;
         }
@@ -869,8 +880,8 @@ class BaseEntity
         if (!empty($this->_updateAttrs)) {
             $data = [];
             foreach ($this->_updateAttrs as $attr) {
-                if (isset($this->_value[$attr])) {
-                    $data[$attr] = $this->_value[$attr];
+                if (isset($this->_values[$attr])) {
+                    $data[$attr] = $this->_values[$attr];
                 }
             }
 
@@ -901,7 +912,7 @@ class BaseEntity
      *</pre>
      * @return QueryTable
      */
-    public static function getQueryTable()
+    public static function getQueryTable():QueryTable
     {
 
         $queryTableClass = static::queryTable();
@@ -909,6 +920,8 @@ class BaseEntity
         /** @var QueryTable $queryTable*/
         $queryTable =  new $queryTableClass();
         $queryTable->setDbkey(static::dbKey())
+            ->setPk(static::pk())
+            ->setSeq(static::autoIncrement())
             ->setTbRule(static::getTbShardRule())
             ->setDbRule(static::getDbShardRule())
             ->setTable(static::tableName())
@@ -975,7 +988,7 @@ class BaseEntity
      *</pre>
      * @return string
      */
-    public static function getLastCommand()
+    public static function getLastCommand():string
     {
         return static::dbSession()->getLastCommand();
     }
@@ -988,7 +1001,7 @@ class BaseEntity
      *</pre>
      * @return string
      */
-    public static function getLastSql()
+    public static function getLastSql():string
     {
         return static::dbSession()->getLastCommand();
     }
@@ -1003,7 +1016,7 @@ class BaseEntity
      */
     public static function getLastId()
     {
-        return static::dbSession()->getLastId();
+        return static::dbSession()->getLastId(static::autoIncrement());
     }
 
     /**
@@ -1050,7 +1063,7 @@ class BaseEntity
      * @param array $refs
      * @return QueryTable
      */
-    public static function hasOne($model,$refs)
+    public static function hasOne($model,$refs):QueryTable
     {
         return static::createRelationQueryTable($model,$refs,false);
     }
@@ -1065,7 +1078,7 @@ class BaseEntity
      * @param array $refs
      * @return QueryTable
      */
-    public static function hasMany($model,$refs)
+    public static function hasMany($model,$refs):QueryTable
     {
         return static::createRelationQueryTable($model,$refs,true);
     }
@@ -1078,7 +1091,7 @@ class BaseEntity
      *</pre>
      * @param Entity $model
      * @param array $refs
-     * @return QueryTable|array|mixed
+     * @return QueryTable
      */
     protected static function createRelationQueryTable($model,$refs,$multiple)
     {

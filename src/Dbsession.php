@@ -1,7 +1,7 @@
 <?php
 namespace horm;
 
-use horm\base\BaseEntity;
+use horm\base\BaseConnection;
 use horm\base\QueryCommand;
 use horm\base\DbConnection;
 use horm\base\Query;
@@ -24,7 +24,7 @@ use horm\pools\ConnectionPool;
  *
  * @method QueryTable setScope($scope,...$args)
  * @method QueryTable setShard($shard_columns = [])
- * @method QueryTable setSelect($fields = [])
+ * @method QueryTable setField($fields = [])
  * @method QueryTable setWhere($where = [], $params = [])
  * @method QueryTable setTable($table = '')
  * @method QueryTable setAlias($alias = '')
@@ -39,6 +39,7 @@ use horm\pools\ConnectionPool;
  * @method QueryTable setParam($params = null)
  * @method QueryTable asArray($asArray = true)
  * @method QueryTable asMaster($asMaster = true)
+ * @method QueryTable asId()
  * @method QueryTable queryCmd($queryCommand, $params = [])
  * @method QueryTable execCmd($queryCommand, $params = [])
  * @method QueryTable querySql($querySql, $params = [])
@@ -54,7 +55,7 @@ use horm\pools\ConnectionPool;
 class Dbsession
 {
     /**
-     * 线程安全
+     * 线程安全类
      *<B>说明：</B>
      *<pre>
      *  略
@@ -76,7 +77,7 @@ class Dbsession
 	public $dbkey = 'hehe';
 
 	/**
-	 * 全部数据库配置
+	 * 数据库配置
 	 *<B>说明：</B>
 	 *<pre>
 	 *  略
@@ -134,27 +135,27 @@ class Dbsession
      * 每次数据库操作之前都必须调用此方法选择对应的数据库db
      *</pre>
      * @param Query $query query 对象
-     * @param boolean $isWrite 是否写
      * @param string $dbkey 数据库连接key
-     * @param bool $force 是否强制连接
+     * @param bool $force 是否强制使用指定的dbkey连接
      * @return DbConnection
      */
-    public function getDb(Query $query,bool $isWrite = true,string $dbkey = '',$force = false):DbConnection
+    public function getDb(Query $query,string $dbkey = '',$force = false):BaseConnection
     {
     	// 主库连接
         $dbconn = $this->getDbConnection($dbkey);
 
         # 读写分离
-		if ($force === false && $isWrite == false && $dbconn->isSlave() && !$query->asMaster()) {
+		if ($force === false && $query->asWriteStatus() == false && $dbconn->isSlave() && !$query->asMasterStatus()) {
 			$dbconnkey = $dbconn->getSlaveDbkey();
 			$dbconn = $this->getDbConnection($dbconnkey);
 		}
 
         // 如果是更新操作，则将当前的连接加入事务池
-        if ($isWrite === true) {
+        if ($query->asWriteStatus() === true) {
             $this->addTransDb($dbkey);
         }
 
+        // 记录最后操作的db连接
         $this->dbconn = $dbconn;
 
         return $dbconn;
@@ -166,33 +167,54 @@ class Dbsession
 	 *<pre>
 	 *  略
 	 *</pre>
-	 * @param string $dbKey 数据库连接key
+	 * @param string $dbkey 数据库连接key
 	 * @return DbConnection
 	 */
-	public function getDbConnection(string $dbKey = ''):DbConnection
+	public function getDbConnection(string $dbkey = ''):BaseConnection
 	{
 
-        $connectionPool = $this->getConnectionPool($dbKey);
+        $connectionPool = $this->getConnectionPool($dbkey);
+		$dbConnection = $connectionPool->getConnection();
+		if (is_null($dbConnection)) {
+			throw new Exception($this->formatMessage('db_non_existent',['dbkey'=>$dbkey]));
+		}
 
-        return $connectionPool->getConnection();
+        return $dbConnection;
 	}
 
-	protected function getConnectionPool(string $dbKey):ConnectionPool
+	/**
+	 * 获取一个数据库的连接池
+	 *<B>说明：</B>
+	 *<pre>
+	 *  略
+	 *</pre>
+	 * @param string $dbkey 数据库连接key
+	 * @return ConnectionPool
+	 */
+	protected function getConnectionPool(string $dbkey):ConnectionPool
 	{
-		if (isset($this->dbConnectionPools[$dbKey])) {
-            return $this->dbConnectionPools[$dbKey];
+		if (isset($this->dbConnectionPools[$dbkey])) {
+            return $this->dbConnectionPools[$dbkey];
 		}
 
-		if (!isset($this->dblist[$dbKey])) {
-			throw new Exception($this->formatMessage('db_non_existent',['dbkey'=>$dbKey]));
+		if (!isset($this->dblist[$dbkey])) {
+			throw new Exception($this->formatMessage('db_non_existent',['dbkey'=>$dbkey]));
 		}
 
-        $dbconf = $this->dblist[$dbKey];
-        $this->dbConnectionPools[$dbKey] = $this->makeConnectionPool($dbKey,$dbconf);
+        $dbconf = $this->dblist[$dbkey];
+        $this->dbConnectionPools[$dbkey] = $this->makeConnectionPool($dbkey,$dbconf);
 
-        return $this->dbConnectionPools[$dbKey];
+        return $this->dbConnectionPools[$dbkey];
 	}
 
+	/**
+	 * 获取一个数据库的事务组对象
+	 *<B>说明：</B>
+	 *<pre>
+	 *  略
+	 *</pre>
+	 * @return TransactionGroup
+	 */
 	protected function getTransactionGroup():TransactionGroup
 	{
 		$transactionGroup = $this->transactionGroup;
@@ -205,20 +227,23 @@ class Dbsession
 		return $this->transactionGroup;
 	}
 
-
     /**
-     * 获取事务
+     * 获取指定db连接的事务对象
      *<B>说明：</B>
      *<pre>
      * 	1、开启事务之前，自动回提交之前的事务
      * 	2、只作用与实体类当前连接的数据库事务
      *</pre>
-	 * @param string $dbKey
+	 * @param string $dbkey 为指定db key,则读取默认数据库key
      * @return Transaction
      */
-	public function getTransaction(string $dbKey):Transaction
+	public function getTransaction(string $dbkey = ''):Transaction
 	{
-        $db = $this->getDbConnection($dbKey);
+		if ($dbkey == '') {
+			$dbkey = $this->dbkey;
+		}
+
+        $db = $this->getDbConnection($dbkey);
 
         return new Transaction($db);
 	}
@@ -247,14 +272,14 @@ class Dbsession
 	 *<pre>
 	 * 略
 	 *</pre>
-	 * @param string $dbConnKey 数据库连接配置键名
+	 * @param string $dbkey 数据库db key
 	 * @return void
 	 */
-	public function addTransDb(string $dbConnKey = ''):void
+	protected function addTransDb(string $dbkey = ''):void
 	{
 		if ($this->transStatus === true) {//如果事务状态已经开启，则自动开启db 事务
-			if (!$this->getTransactionGroup()->hasTransaction($dbConnKey)) {
-                $this->getTransactionGroup()->addTransaction($dbConnKey,$this->getTransaction($dbConnKey));
+			if (!$this->getTransactionGroup()->hasTransaction($dbkey)) {
+                $this->getTransactionGroup()->addTransaction($dbkey,$this->getTransaction($dbkey));
 			}
 		}
 	}
@@ -302,7 +327,7 @@ class Dbsession
 	 *</pre>
 	 * @return void
 	 */
-	private function clearTransaction():void
+	protected function clearTransaction():void
 	{
 		$this->transStatus = null;
 
@@ -346,12 +371,12 @@ class Dbsession
 	 *<pre>
 	 *  略
 	 *</pre>
-	 * @param Query $query sql 语句
+	 * @param Query $query
 	 * @return string
 	 */
 	public function buildSql(Query $query):string
 	{
-        $command = $query->buildParamsCommand();
+        $command = $query->buildQueryCommand();
 
 		return $this->replaceSqlValue($command->buildCommand(),$command->getParams());
 	}
@@ -380,7 +405,7 @@ class Dbsession
 	 * @param array $params 绑定参数
 	 * @return string sql 语句
 	 */
-	private  function replaceSqlValue(string $query = '', array $params = []):string
+	protected  function replaceSqlValue(string $query = '', array $params = []):string
 	{
 		$keys = array();
 		$values = array();
@@ -439,7 +464,7 @@ class Dbsession
     }
 
 	/**
-	 * 获取最后一条sql
+	 * 获取最后一条命令
 	 *<B>说明：</B>
 	 *<pre>
 	 *  略
@@ -451,23 +476,31 @@ class Dbsession
 		return $this->lastcommand;
 	}
 
+	/**
+	 * 获取最后一条sql
+	 *<B>说明：</B>
+	 *<pre>
+	 *  略
+	 *</pre>
+	 * @return string sql 语句
+	 */
 	public function getLastSql()
 	{
 		return $this->lastcommand;
 	}
 
     /**
-     * 获取数据库类实例
+     * 创建数据库连接类实例
      *<B>说明：</B>
      *<pre>
      * 略
      *</pre>
-     * @param string $dbKey
+     * @param string $dbkey
      * @param array $dbconf;
-     * @return DbConnection 返回数据库驱动类
+     * @return DbConnection
      * @throws Exception
      */
-    public function makeDbConnection(string $dbKey,array $dbconf):DbConnection
+    public function makeDbConnection(string $dbkey,array $dbconf):BaseConnection
     {
 
         $dbClass = $this->buildConnectionClass($dbconf);
@@ -477,11 +510,21 @@ class Dbsession
             throw new Exception($this->formatMessage('db_class_undefined',['dbclass'=>$dbClass]));
         }
 
-        $dbconn = new $dbClass(['dbKey'=>$dbKey,'config'=>$dbconf,'dbsession'=>$this]);
+        $dbconn = new $dbClass(['dbKey'=>$dbkey,'config'=>$dbconf,'dbsession'=>$this]);
 
         return $dbconn;
     }
 
+	/**
+	 * 根据配置生成数据库连接类路径
+	 *<B>说明：</B>
+	 *<pre>
+	 * 略
+	 *</pre>
+	 * @param array $dbconf;
+	 * @return DbConnection
+	 * @throws Exception
+	 */
     protected function buildConnectionClass(array $dbconf = []):string
     {
 
@@ -507,11 +550,11 @@ class Dbsession
      *<pre>
      * 略
      *</pre>
-	 * @param string $dbKey db key
+	 * @param string $dbkey db key
      * @param array $dbconf db 配置
      * @return ConnectionPool
      */
-    public function makeConnectionPool(string $dbKey,array $dbconf):ConnectionPool
+    protected function makeConnectionPool(string $dbkey,array $dbconf):ConnectionPool
     {
         if (isset($dbconf['pool'])) {
             $poolconf = $dbconf['pool'];
@@ -533,7 +576,7 @@ class Dbsession
 
 		$poolconf['dbsession'] = $this;
 		$poolconf['dbconf'] = $dbconf;
-		$poolconf['dbKey'] = $dbKey;
+		$poolconf['dbKey'] = $dbkey;
 
         return new $poolClass($poolconf);
     }
@@ -567,16 +610,6 @@ class Dbsession
 
 		return $message;
 	}
-
-    public function __get($name)
-    {
-		return $this->_saleLocal->getAttribute($name);
-    }
-
-    public function __set($name, $value)
-    {
-        $this->_saleLocal->setAttribute($name,$value);
-    }
 
     public function createSaleLocal()
 	{
@@ -647,24 +680,27 @@ class Dbsession
 
 	/**
 	 * 添加数据库连接配置
-	 * @param string $db_key
+	 * @param string $dbkey
 	 * @param array $db_conf
-	 * @return $this
+	 * @return static
 	 */
-	public function addDb(string $db_key = '',array $db_conf = []):self
+	public function addDb(string $dbkey = '',array $db_conf = []):self
 	{
-		$this->dblist[$db_key] = $db_conf;
+		$this->dblist[$dbkey] = $db_conf;
 
 		return $this;
 	}
 
 	/**
 	 * 设置默认db key
-	 * @param $db_key
+	 * @param $dbkey
+	 * @return static
 	 */
-	public function setDb(string $db_key)
+	public function setDb(string $dbkey):self
 	{
-		$this->dbkey = $db_key;
+		$this->dbkey = $dbkey;
+
+		return $this;
 	}
 
 	/**
@@ -678,6 +714,16 @@ class Dbsession
 			$connection->close();
 			unset($connection);
 		}
+	}
+
+	public function __get($name)
+	{
+		return $this->_saleLocal->getAttribute($name);
+	}
+
+	public function __set($name, $value)
+	{
+		$this->_saleLocal->setAttribute($name,$value);
 	}
 
 	public function __call($method,$args)

@@ -49,7 +49,7 @@ class AdminUserRoleEntity extends Entity
      */
     public static function autoIncrement()
     {
-        return true;
+        return 'web_admin_user_role_seq';
     }
 
     /**

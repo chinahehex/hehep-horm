@@ -1,6 +1,7 @@
 <?php
 namespace horm\shard;
 use horm\base\BaseTable;
+use horm\QueryTable;
 use horm\shard\base\ShardDbTrait;
 
 /**
@@ -10,7 +11,7 @@ use horm\shard\base\ShardDbTrait;
  * 略
  *</pre>
  */
-class ShardDb extends BaseTable
+class ShardDb extends QueryTable
 {
     use ShardDbTrait;
 }

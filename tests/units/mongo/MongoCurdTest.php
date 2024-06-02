@@ -200,29 +200,29 @@ class MongoCurdTest extends TestCase
 
     public function testColumnQuery()
     {
-        $user = AdminUserinfoNosqlEntity::setWhere(['id'=>1])->setSelect("id,tel")->fetchOne();
+        $user = AdminUserinfoNosqlEntity::setWhere(['id'=>1])->setField("id,tel")->fetchOne();
         $this->assertTrue((isset($user['id']) && isset($user['tel']) && !isset($user['username'])));
 
-        $user = AdminUserinfoNosqlEntity::setWhere(['id'=>1])->setSelect(['id','tel'])->fetchOne();
+        $user = AdminUserinfoNosqlEntity::setWhere(['id'=>1])->setField(['id','tel'])->fetchOne();
         $this->assertTrue((isset($user['id']) && isset($user['tel']) && !isset($user['username'])));
 
-        $userEntitys = AdminUserinfoNosqlEntity::setWhere(['id'=>1])->setSelect("id,tel")->fetchAll();
+        $userEntitys = AdminUserinfoNosqlEntity::setWhere(['id'=>1])->setField("id,tel")->fetchAll();
         foreach ($userEntitys as $user) {
             $this->assertTrue((isset($user['id']) && isset($user['tel']) && !isset($user['username'])));
         }
 
-        $userEntitys = AdminUserinfoNosqlEntity::setWhere(['id'=>1])->setSelect(['id','tel'])->fetchAll();
+        $userEntitys = AdminUserinfoNosqlEntity::setWhere(['id'=>1])->setField(['id','tel'])->fetchAll();
         foreach ($userEntitys as $user) {
             $this->assertTrue((isset($user['id']) && isset($user['tel']) && !isset($user['username'])));
         }
 
-        $user = AdminUserinfoNosqlEntity::setWhere(['id'=>1])->setSelect(['id'=>'user_id','tel'])->fetchOne();
+        $user = AdminUserinfoNosqlEntity::setWhere(['id'=>1])->setField(['id'=>'user_id','tel'])->fetchOne();
         $this->assertTrue((isset($user['user_id']) && isset($user['tel']) && !isset($user['id'])));
 
-        $user = AdminUserinfoNosqlEntity::setWhere(['id'=>1])->setSelect(['id as user_id','tel'])->fetchOne();
+        $user = AdminUserinfoNosqlEntity::setWhere(['id'=>1])->setField(['id as user_id','tel'])->fetchOne();
         $this->assertTrue((isset($user['user_id']) && isset($user['tel']) && !isset($user['id'])));
 
-        $user = AdminUserinfoNosqlEntity::setWhere(['id'=>1])->setSelect(['id'=>['alias'=>'user_id'],'tel'])->fetchOne();
+        $user = AdminUserinfoNosqlEntity::setWhere(['id'=>1])->setField(['id'=>['alias'=>'user_id'],'tel'])->fetchOne();
         $this->assertTrue((isset($user['user_id']) && isset($user['tel']) && !isset($user['id'])));
 
     }
@@ -245,27 +245,27 @@ class MongoCurdTest extends TestCase
 
 //    public function testAsQuery()
 //    {
-//        $users_query = AdminUserinfoNosqlEntity::setSelect('id')->setWhere(['id'=>[1,2,3,4],'status'=>1])->asQuery()->fetchAll();
+//        $users_query = AdminUserinfoNosqlEntity::setField('id')->setWhere(['id'=>[1,2,3,4],'status'=>1])->asQuery()->fetchAll();
 //        $users = AdminUserinfoNosqlEntity::setWhere(['id'=>['in',$users_query]])->fetchAll();
 //        $this->assertTrue(count($users) == 2 && in_array($users[0]['id'],[1,2]) && in_array($users[1]['id'],[1,2]));
 //    }
 
     public function testLimit()
     {
-        $users = AdminUserinfoNosqlEntity::setSelect('id')->setWhere(['id'=>[1,2,3,4],'status'=>1])->setLimit(1)->fetchAll();
+        $users = AdminUserinfoNosqlEntity::setField('id')->setWhere(['id'=>[1,2,3,4],'status'=>1])->setLimit(1)->fetchAll();
         $this->assertTrue(count($users) == 1 && in_array($users[0]['id'],[1,2]));
     }
 
 //    public function testDistinct()
 //    {
-//        $users = AdminUserNosqlEntity::setSelect('tel')->setWhere(['id'=>[1,2,3,4],'status'=>1])->setDistinct()->fetchAll();
+//        $users = AdminUserNosqlEntity::setField('tel')->setWhere(['id'=>[1,2,3,4],'status'=>1])->setDistinct()->fetchAll();
 //        $this->assertTrue(count($users) == 2 && in_array($users[0]['tel'],['13564768841','13564768842'])&& in_array($users[1]['tel'],['13564768841','13564768842']));
 //    }
 
     public function testJoin()
     {
         $users = AdminUserinfoNosqlEntity::setAlias('u')
-            ->setSelect('role.roleName as roleName')
+            ->setField('role.roleName as roleName')
             ->setJoin(['{{%admin_user_role}}','role'],['roleId'=>['raw','role.id']])
             ->setWhere(['role.status'=>1])
             ->setWhere(['id'=>[1,2]])->fetchAll();
@@ -332,46 +332,46 @@ class MongoCurdTest extends TestCase
     public function testGroup()
     {
 
-        $users = AdminUserinfoNosqlEntity::setSelect('tel')->setWhere(['id'=>[1,2,3,4]])->setGroup('tel')->fetchAll();
+        $users = AdminUserinfoNosqlEntity::setField('tel')->setWhere(['id'=>[1,2,3,4]])->setGroup('tel')->fetchAll();
 
         $this->assertTrue(count($users) == 2 && isset($users[0]['tel']) && isset($users[1]['tel']));
 
-        $users = AdminUserinfoNosqlEntity::setSelect('tel,status')->setWhere(['id'=>[1,2,3,4]])->setGroup('tel,status')->fetchAll();
+        $users = AdminUserinfoNosqlEntity::setField('tel,status')->setWhere(['id'=>[1,2,3,4]])->setGroup('tel,status')->fetchAll();
         $this->assertTrue(count($users) == 3 && isset($users[0]['tel']) && isset($users[0]['status']));
 
-        $users = AdminUserinfoNosqlEntity::setSelect('tel')->setWhere(['id'=>[1,2,3,4]])->setGroup('tel,status')->setHaving(['status'=>0])->fetchAll();
+        $users = AdminUserinfoNosqlEntity::setField('tel')->setWhere(['id'=>[1,2,3,4]])->setGroup('tel,status')->setHaving(['status'=>0])->fetchAll();
         $this->assertTrue(count($users) == 1 && isset($users[0]['tel']));
 
-        $users = AdminUserinfoNosqlEntity::setSelect('tel')->setWhere(['id'=>[1,2,3,4]])->setGroup('tel,status,roleId')
+        $users = AdminUserinfoNosqlEntity::setField('tel')->setWhere(['id'=>[1,2,3,4]])->setGroup('tel,status,roleId')
             ->setAndHaving(['status'=>0,'roleId'=>['>',0]])->fetchAll();
         $this->assertTrue(count($users) == 2);
 
-        $users = AdminUserinfoNosqlEntity::setSelect('tel')->setWhere(['id'=>[1,2,3,4]])->setGroup('tel,status,roleId')
+        $users = AdminUserinfoNosqlEntity::setField('tel')->setWhere(['id'=>[1,2,3,4]])->setGroup('tel,status,roleId')
             ->setOrHaving(['status'=>0,'roleId'=>['>',0]])->fetchAll();
 
         $this->assertTrue(count($users) == 4);
 
-        $users = AdminUserinfoNosqlEntity::setSelect('tel,count(1) as total')->setWhere(['id'=>[1,2,3,4]])
+        $users = AdminUserinfoNosqlEntity::setField('tel,count(1) as total')->setWhere(['id'=>[1,2,3,4]])
             ->setGroup('tel')->fetchAll();
         $this->assertTrue(count($users) == 2 && isset($users[0]['tel']) && isset($users[0]['total']));
 
-        $users = AdminUserinfoNosqlEntity::setSelect('tel,count(1) as total')->setWhere(['id'=>[1,2,3,4]])
+        $users = AdminUserinfoNosqlEntity::setField('tel,count(1) as total')->setWhere(['id'=>[1,2,3,4]])
             ->setGroup('tel')->setHaving(['total'=>['>',1]])->fetchAll();
         $this->assertTrue(count($users) == 1 && isset($users[0]['tel']) && $users[0]['total'] == 3);
 
-        $users = AdminUserinfoNosqlEntity::setSelect('tel,sum(roleId) as total')->setWhere(['id'=>[1,2,3,4]])
+        $users = AdminUserinfoNosqlEntity::setField('tel,sum(roleId) as total')->setWhere(['id'=>[1,2,3,4]])
             ->setGroup('tel')->fetchAll();
         $this->assertTrue(count($users) == 2 && isset($users[0]['tel']) && isset($users[0]['total']));
 
-        $users = AdminUserinfoNosqlEntity::setSelect('tel,avg(roleId) as total')->setWhere(['id'=>[1,2,3,4]])
+        $users = AdminUserinfoNosqlEntity::setField('tel,avg(roleId) as total')->setWhere(['id'=>[1,2,3,4]])
             ->setGroup('tel')->fetchAll();
         $this->assertTrue(count($users) == 2 && isset($users[0]['tel']) && isset($users[0]['total']));
 
-        $users = AdminUserinfoNosqlEntity::setSelect('tel,max(roleId) as total')->setWhere(['id'=>[1,2,3,4]])
+        $users = AdminUserinfoNosqlEntity::setField('tel,max(roleId) as total')->setWhere(['id'=>[1,2,3,4]])
             ->setGroup('tel')->fetchAll();
         $this->assertTrue(count($users) == 2 && isset($users[0]['tel']) && isset($users[0]['total']));
 
-        $users = AdminUserinfoNosqlEntity::setSelect('tel,min(roleId) as total')->setWhere(['id'=>[1,2,3,4]])
+        $users = AdminUserinfoNosqlEntity::setField('tel,min(roleId) as total')->setWhere(['id'=>[1,2,3,4]])
             ->setGroup('tel')->fetchAll();
         $this->assertTrue(count($users) == 2 && isset($users[0]['tel']) && isset($users[0]['total']));
 

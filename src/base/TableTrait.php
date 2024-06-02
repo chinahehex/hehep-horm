@@ -27,13 +27,13 @@ trait TableTrait
 	 * 	boolean:false sql 错误
 	 *</pre>
      */
-	public function addInternal($query,$queryType = '')
+	public function addInternal(Query $query,$queryType = '')
 	{
 
 		$query->setBuildParams([$query]);
-        $query->toUpdate(true);
+        $query->asWrite(true);
 
-		if ($query->isQuery()) {
+		if ($query->asQueryStatus()) {
 			return $query;
 		}
 
@@ -58,12 +58,12 @@ trait TableTrait
 	 * 	boolean:false sql 错误
 	 *</pre>
      */
-	public function updateInternal($query,$queryType = '')
+	public function updateInternal(Query $query,$queryType = '')
 	{
 
 		$query->setBuildParams([$query]);
-        $query->toUpdate(true);
-		if ($query->isQuery()) {
+        $query->asWrite(true);
+		if ($query->asQueryStatus()) {
 			return $query;
 		}
 
@@ -88,13 +88,13 @@ trait TableTrait
 	 * 	boolean:false sql 错误
 	 *</pre>
      */
-	public function deleteInternal($query,$queryType = '')
+	public function deleteInternal(Query $query,$queryType = '')
 	{
 
 		$query->setBuildParams([$query]);
-        $query->toUpdate(true);
+        $query->asWrite(true);
 
-		if ($query->isQuery()) {
+		if ($query->asQueryStatus()) {
 			return $query;
 		}
 
@@ -119,11 +119,11 @@ trait TableTrait
 	 * 	boolean:false sql 错误
 	 *</pre>
      */
-    public function queryInternal($query,$queryType = '')
+    public function queryInternal(Query $query,$queryType = '')
     {
 		$query->setBuildParams([$query]);
-        $query->toUpdate(false);
-		if ($query->isQuery()) {
+        $query->asWrite(false);
+		if ($query->asQueryStatus()) {
 			return $query;
 		}
 
@@ -148,11 +148,11 @@ trait TableTrait
 	 * 	boolean:false sql 错误
 	 *</pre>
 	 */
-	public function queryScalarInternal($query,$method = '')
+	public function queryScalarInternal(Query $query,$method = '')
 	{
 		$query->setBuildParams([$query,$method]);
-        $query->toUpdate(false);
-		if ($query->isQuery()) {
+        $query->asWrite(false);
+		if ($query->asQueryStatus()) {
 			return $query;
 		}
 

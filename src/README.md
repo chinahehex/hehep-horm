@@ -59,7 +59,7 @@ $conf = [
 - mysql 数据库
 ```php
 $dblist = [
-    'hehe' => ['driver'=>'Pdo','type' => 'mysql','host' => 'localhost','database'=>'hehe','username' => 'root',
+    'hehe' => ['driver'=>'mysql','host' => 'localhost','database'=>'hehe','username' => 'root',
         'password' => '123123','port' => '3306','charset' => 'utf8','prefix' => 'web_'
      ]
 ];
@@ -69,7 +69,7 @@ $dblist = [
 - sqlite 数据库
 ```php
 $dblist = [
-    'sqlite' => ['driver'=>'Pdo','type' => 'sqlite','database'=>'/home/hehe/www/db/hehe.db','prefix' => 'web_'],
+    'sqlite' => ['driver'=>'sqlite','database'=>'/home/hehe/www/db/hehe.db','prefix' => 'web_'],
 ];
     
 ```
@@ -77,7 +77,7 @@ $dblist = [
 - pgsql 数据库
 ```php
 $dblist = [
-    'pgsql' => ['driver'=>'Pdo','type' => 'pgsql','host' => 'localhost','database'=>'hehedb','username' => 'postgres',
+    'pgsql' => ['driver'=>'pgsql','host' => 'localhost','database'=>'hehedb','username' => 'postgres',
         'password' => '123123','port' => '5432','charset' => 'utf8','prefix' => 'web_'
     ],
 ];
@@ -87,7 +87,7 @@ $dblist = [
 - oracle 数据库
 ```php
 $dblist = [
-    'oci' => ['driver'=>'Pdo','type' => 'oci','host' => 'localhost','database'=>'xe','username' => 'hehe',
+    'oci' => ['driver'=>'oci','host' => 'localhost','database'=>'xe','username' => 'hehe',
                         'password' => '123123','port' => '1521','charset' => 'utf8','prefix' => 'web_'
     ]
 ];
@@ -117,9 +117,6 @@ $dblist = [
 ];
     
 ```
-
-
-
 
 ## 基本示例
 
@@ -424,15 +421,15 @@ AdminUserEntity::setWhere(['roleId'=>['or', ['>=',1],['<=',3] ]])->fetchAll();
 - 指定读取列
 ```php
 // 读取指定字段查询
-$userEntity = AdminUserEntity::setWhere(['id'=>9])->setSelect("id,tel")->fetchOne();
-$userEntitys = AdminUserEntity::setWhere(['id'=>1])->setSelect(['id','tel'])->fetchAll();
+$userEntity = AdminUserEntity::setWhere(['id'=>9])->setField("id,tel")->fetchOne();
+$userEntitys = AdminUserEntity::setWhere(['id'=>1])->setField(['id','tel'])->fetchAll();
 
 // 指定列别名,如指定id列名的别名user_id
-$userEntitys = AdminUserEntity::setWhere(['id'=>1])->setSelect(['id'=>'user_id','tel'])->fetchOne();
+$userEntitys = AdminUserEntity::setWhere(['id'=>1])->setField(['id'=>'user_id','tel'])->fetchOne();
 
 // 指定列按原始输出
-$userEntitys = AdminUserEntity::setWhere(['id'=>1])->setSelect(['id','tel',['(status+1) as age']])->fetchOne();
-$userEntitys = AdminUserEntity::setWhere(['id'=>1])->setSelect(['id','tel',['(status+1) as age','(status+1) as age1']])->fetchOne();
+$userEntitys = AdminUserEntity::setWhere(['id'=>1])->setField(['id','tel',['(status+1) as age']])->fetchOne();
+$userEntitys = AdminUserEntity::setWhere(['id'=>1])->setField(['id','tel',['(status+1) as age','(status+1) as age1']])->fetchOne();
 
 ```
 
@@ -505,7 +502,7 @@ $users = AdminUserEntity::setWhere(['id'=>[1,2,3,4]])->effective(3)->fetchAll();
 ```
 - asQuery 示例
 ```php
- $users_query = AdminUserEntity::setSelect('id')->setWhere(['id'=>[1,2,3,4],'status'=>1])->asQuery()->fetchAll();
+ $users_query = AdminUserEntity::setField('id')->setWhere(['id'=>[1,2,3,4],'status'=>1])->asQuery()->fetchAll();
  $users = AdminUserEntity::setWhere(['id'=>['in',$users_query]])->fetchAll();
 ```
 ### setLimit,setOffset
@@ -517,17 +514,17 @@ setOffset 起始位置为0,如从第一行读取,则设置为0,如从第二行�
 - setLimit,setOffset 示例
 ```php
 // 从起始位置0(从第1行开始)读取1条记录
-AdminUserEntity::setSelect('id')->setWhere(['id'=>[1,2,3,4],'status'=>1])->setOffset(0)->setLimit(1)->fetchAll();
+AdminUserEntity::setField('id')->setWhere(['id'=>[1,2,3,4],'status'=>1])->setOffset(0)->setLimit(1)->fetchAll();
 
 // 从起始位置1(从第2行开始)读取2条记录
-AdminUserEntity::setSelect('id')->setWhere(['id'=>[1,2,3,4],'status'=>1])->setOffset(1)->setLimit(2)->fetchAll();
+AdminUserEntity::setField('id')->setWhere(['id'=>[1,2,3,4],'status'=>1])->setOffset(1)->setLimit(2)->fetchAll();
 ```
 
 ### setDistinct
 - setDistinct 示例
 ```php
 // 取消重复行(即返回不重复的手机号)
-$users = AdminUserEntity::setSelect('tel')->setWhere(['id'=>[1,2,3,4],'status'=>1])->setDistinct()->fetchAll();
+$users = AdminUserEntity::setField('tel')->setWhere(['id'=>[1,2,3,4],'status'=>1])->setDistinct()->fetchAll();
 ```
 
 ### setParam 设置预定义参数
@@ -545,14 +542,15 @@ setAndWhere  | 设置查询and条件
 setOrWhere  | 设置查询and条件
 setScope  | 设置scope作用域
 asArray  | 查询以数组形式返回
+asQuery  | 返回Query对象
+asId  | 返回自增id
 setTable  | 设置表名
 setJoin  | 设置连表
 setWith  | 设置关系
 setOrder  | 设置查询排序
 setParam  | 设置参数
-setSelect  | 设置查询读取字段
+setField  | 设置查询读取字段
 setAlias  | 设置当前表别名
-asQuery  | 返回Query对象
 setUnion  | 设置联合查询
 setLimit  | 设置影响条数
 setDistinct  | 取消重复行
@@ -587,6 +585,11 @@ dec  | 字段递减 | $data = ['id'=>['dec',1]] sql:`id` = `id` - 1
 ```
 - 操作示例
 ```php
+$users = AdminUserEntity::setField(['tel','realName'=>['as','name']])->fetchAll();
+
+$users = AdminUserEntity::setField(['tel','id'=>['as',['total','count']]])->setGroup('tel')->fetchAll();
+
+$users = AdminUserEntity::setField(['tel','id'=>['as',['total','max']]])->setGroup('tel')->fetchAll();
 // 主表别名
 $users = AdminUserEntity::setWhere(['adu.id'=>[1,2]])->setAlias('adu')->fetchAll();
 // # 符号代替主表别名
@@ -595,11 +598,13 @@ $users = AdminUserEntity::setWhere(['#.id'=>[1,2]])->setAlias('adu')->fetchAll()
 // 如未设置主表别名,系统会自动会剔除"#."
 $users = AdminUserEntity::setWhere(['#.id'=>[1,2]])->fetchAll();
 
-$users = AdminUserEntity::setWhere(['#.id'=>[1,2]])->setAlias('user')->setSelect('#.*')
+$users = AdminUserEntity::setWhere(['#.id'=>[1,2]])->setAlias('user')->setField('#.*')
     ->setJoin("{{%admin_user_role}} as role",['#.roleId'=>['raw','role.id']])->fetchAll();
 
-$users = AdminUserEntity::setWhere(['#.id'=>[1,2]])->setAlias('user')->setSelect('#.*')
+$users = AdminUserEntity::setWhere(['#.id'=>[1,2]])->setAlias('user')->setField('#.*')
     ->setJoin("{{%admin_user_role}} as role",['role.id'=>['raw','#.roleId']])->fetchAll();
+
+
 ```
 - 实体定义
 ```php
@@ -700,18 +705,18 @@ $adminUserEntity = AdminUserEntity::setWhere(['username'=>"admin"])->setWith('ro
 
 - 分组示例
 ```php
-$users = AdminUserEntity::setSelect('tel')->setWhere(['id'=>[1,2,3,4]])->setGroup('tel')->fetchAll();
-$users = AdminUserEntity::setSelect('tel,status')->setWhere(['id'=>[1,2,3,4]])->setGroup('tel,status')->fetchAll();
-$users = AdminUserEntity::setSelect('tel,status')->setWhere(['id'=>[1,2,3,4]])->setGroup(['tel','status'])->fetchAll();
+$users = AdminUserEntity::setField('tel')->setWhere(['id'=>[1,2,3,4]])->setGroup('tel')->fetchAll();
+$users = AdminUserEntity::setField('tel,status')->setWhere(['id'=>[1,2,3,4]])->setGroup('tel,status')->fetchAll();
+$users = AdminUserEntity::setField('tel,status')->setWhere(['id'=>[1,2,3,4]])->setGroup(['tel','status'])->fetchAll();
 ```
 - 分组条件
 ```php
-$users = AdminUserEntity::setSelect('tel')->setWhere(['id'=>[1,2,3,4]])->setGroup('tel,status')->setHaving(['status'=>0])->fetchAll();
+$users = AdminUserEntity::setField('tel')->setWhere(['id'=>[1,2,3,4]])->setGroup('tel,status')->setHaving(['status'=>0])->fetchAll();
 
-$users = AdminUserEntity::setSelect('tel')->setWhere(['id'=>[1,2,3,4]])->setGroup('tel,status,roleId')
+$users = AdminUserEntity::setField('tel')->setWhere(['id'=>[1,2,3,4]])->setGroup('tel,status,roleId')
             ->setAndHaving(['status'=>0,'roleId'=>['>',0]])->fetchAll();
             
-$users = AdminUserEntity::setSelect('tel')->setWhere(['id'=>[1,2,3,4]])->setGroup('tel,status,roleId')
+$users = AdminUserEntity::setField('tel')->setWhere(['id'=>[1,2,3,4]])->setGroup('tel,status,roleId')
         ->setOrHaving(['status'=>0,'roleId'=>['>',0]])->fetchAll();
 
 ```

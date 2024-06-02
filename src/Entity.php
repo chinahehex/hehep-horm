@@ -17,7 +17,7 @@ class Entity extends BaseEntity implements ArrayAccess,Iterator
     /** 以下方法为,对象作为数组操作的接口方法 **/
     public function offsetExists($offset)
     {
-        if (isset($this->_value[$offset])) {
+        if (isset($this->_values[$offset])) {
             return true;
         } else {
             return false;
@@ -27,19 +27,19 @@ class Entity extends BaseEntity implements ArrayAccess,Iterator
     public function offsetGet($offset)
     {
 
-        return $this->_value[$offset];
+        return $this->_values[$offset];
     }
 
     public function offsetSet($offset, $value)
     {
-        $this->_value[$offset] = $value;
+        $this->_values[$offset] = $value;
 
         return ;
     }
 
     public function offsetUnset($offset)
     {
-        unset($this->_value[$offset]);
+        unset($this->_values[$offset]);
     }
 
     /** 以下方法为,遍历对象操作的接口方法 **/
@@ -50,14 +50,14 @@ class Entity extends BaseEntity implements ArrayAccess,Iterator
     // 遍历对象之前 先重置指针
     public function rewind()
     {
-        $this->_posList = array_keys($this->_value);
+        $this->_posList = array_keys($this->_values);
         $this->_position = 0;
     }
 
     // 获取当前指针
     public function current()
     {
-        return $this->_value[$this->_posList[$this->_position]];
+        return $this->_values[$this->_posList[$this->_position]];
     }
 
     // 获取当前的键值

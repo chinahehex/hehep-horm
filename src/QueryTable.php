@@ -6,7 +6,7 @@ use horm\base\RefTrait;
 use horm\base\TableTrait;
 
 /**
- * 数据库表
+ * 数据表
  *<B>说明：</B>
  *<pre>
  * 略

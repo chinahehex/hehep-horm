@@ -43,7 +43,7 @@ abstract class BaseConnection
 	 */
 	public $config = [];
 
-	protected $ref_method_dict = [];
+	protected static $ref_method_dict = [];
 
     /**
      * 构造方法
@@ -62,19 +62,20 @@ abstract class BaseConnection
         }
     }
 
-    protected function getMethodParams($method,$params = [])
+    protected static function getMethodParams($dbconn_class,$method,$params = [])
     {
-        $reflectionMethod = new \ReflectionMethod($this, $method);
+
         $ref_params = [];
-        if (!isset($this->ref_method_dict[$method])) {
+        if (!isset(static::$ref_method_dict[$method])) {
+            $reflectionMethod = new \ReflectionMethod($dbconn_class, $method);
             foreach ($reflectionMethod->getParameters() as $parameter) {
                 $name = $parameter->getName();
                 $ref_params[$name] = $parameter->isDefaultValueAvailable() ? $parameter->getDefaultValue() : null;
             }
 
-            $this->ref_method_dict[$method] = $ref_params;
+            static::$ref_method_dict[$method] = $ref_params;
         } else {
-            $ref_params = $this->ref_method_dict[$method];
+            $ref_params = static::$ref_method_dict[$method];
         }
 
         $method_params = [];
@@ -104,7 +105,7 @@ abstract class BaseConnection
 
     public function getConfig($name)
     {
-        return $this->config[$name];
+        return isset($this->config[$name]) ? $this->config[$name] : '';
     }
 
     /**
@@ -140,7 +141,7 @@ abstract class BaseConnection
         return call_user_func_array($this->_slaveHandler,[$this]);
     }
 
-    protected function randSlave(DbConnection $dbconn)
+    protected function randSlave(BaseConnection $dbconn)
     {
         $slaves = $dbconn->getConfig("slaves");
 
@@ -187,7 +188,7 @@ abstract class BaseConnection
 
     }
 
-    public function getLastInsertID()
+    public function getLastInsertID($sequence = '')
     {
 
     }

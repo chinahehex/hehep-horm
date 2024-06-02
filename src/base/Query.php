@@ -1,6 +1,7 @@
 <?php
 namespace  horm\base;
 
+use horm\util\DbUtil;
 use ReflectionClass;
 use horm\Dbsession;
 use horm\base\DbConnection;
@@ -165,7 +166,7 @@ class Query
 	protected $isArray = true;
 
 	/**
-	 * 是否强制从主库读取
+	 * 是否强制操作主库
 	 *<B>说明：</B>
 	 *<pre>
 	 *  略
@@ -188,7 +189,7 @@ class Query
      * 格式化数据
      *<B>说明：</B>
      *<pre>
-     *  []
+     *  略
      *</pre>
      * @var array
      */
@@ -241,12 +242,12 @@ class Query
      *<pre>
      *  略
      *</pre>
-     * @var array
+     * @var array|string
      */
 	protected $rawSql;
 
 	/**
-	 * 指定分区值
+	 * 分区列值
 	 *<B>说明：</B>
 	 *<pre>
 	 *  用于分库分表
@@ -256,22 +257,12 @@ class Query
 	protected $shard = [];
 
 	/**
-	 * 是否使用replace方式插入sql
-	 *<B>说明：</B>
-	 *<pre>
-	 *  略
-	 *</pre>
-	 * @var boolean
-	 */
-	protected $replace = false;
-
-	/**
 	 * 自增序列
 	 *<B>说明：</B>
 	 *<pre>
 	 *  略
 	 *</pre>
-	 * @var array
+	 * @var string
 	 */
 	protected $seq = '';
 
@@ -294,6 +285,16 @@ class Query
 	 * @var boolean
 	 */
 	protected $isQuery = false;
+
+	/**
+	 * 是否返回自增id
+	 *<B>说明：</B>
+	 *<pre>
+	 *  用于单条数据插入
+	 *</pre>
+	 * @var boolean
+	 */
+	protected $isId = false;
 
     /**
      * 是否写操作
@@ -379,11 +380,12 @@ class Query
     protected function _init()
     {
         // 初始化表名
-        list($table,$alias) = $this->_separateTableName($this->table);
+        list($table,$alias) = DbUtil::splitAlias($this->table);
 
-        $this->setTable($table);
+        $this->table = $table;
+
         if ($alias !== '') {
-            $this->addAlias([$table=>$alias]);
+            $this->alias = $alias;
         }
 
     }
@@ -531,18 +533,6 @@ class Query
 		return $this->alias;
 	}
 
-	/**
-	 * 添加表别名
-	 *<B>说明：</B>
-	 *<pre>
-	 * 略
-	 *</pre>
-	 * @param array $alias
-	 */
-	public function addAlias($alias)
-	{
-		$this->alias = array_merge($this->alias,$alias);
-	}
 
 	/**
 	 * 获取查询条件
@@ -669,6 +659,11 @@ class Query
 		return $this->seq;
 	}
 
+	public function asId()
+	{
+		return $this->isId;
+	}
+
 	/**
 	 * 获取影响行数
 	 *<B>说明：</B>
@@ -745,19 +740,6 @@ class Query
 	public function getShard()
 	{
 		return $this->shard;
-	}
-
-	/**
-	 * 获取是否使用replace方式插入sql 标识
-	 *<B>说明：</B>
-	 *<pre>
-	 * 略
-	 *</pre>
-	 * @return boolean
-	 */
-	public function getReplace()
-	{
-		return $this->replace;
 	}
 
 
@@ -864,19 +846,48 @@ class Query
 	 *<pre>
 	 * 不执行
 	 *</pre>
+	 * @return static
+	 */
+	public function asQuery($isQuery = true):self
+	{
+		$this->isQuery = $isQuery;
+
+		return $this;
+	}
+
+	/**
+	 * 是否生成Query状态
+	 *<B>说明：</B>
+	 *<pre>
+	 * 不执行
+	 *</pre>
 	 * @return boolean
 	 */
-	public function isQuery()
+	public function asQueryStatus():bool
 	{
 		return $this->isQuery;
 	}
 
-	public function asArray()
+	public function asArray($isArray = true):self
     {
-        return $this->isArray;
+        $this->isArray = $isArray;
+
+		return $this;
     }
 
-    public function asMaster()
+	public function asArrayStatus():bool
+	{
+		return $this->isArray;
+	}
+
+	public function asMaster($isMaster = true):self
+	{
+		$this->isMaster = $isMaster;
+
+		return $this;
+	}
+
+	public function asMasterStatus():bool
 	{
 		return $this->isMaster;
 	}
@@ -890,7 +901,7 @@ class Query
 	 * @param string $rawSql sql语句
 	 * @param array $params 绑定参数
 	 */
-	public function setCommand($rawSql,$params)
+	public function setRawCommand($rawSql,array $params = [])
 	{
 		$this->rawSql = $rawSql;
 		$this->params = $params;
@@ -913,17 +924,6 @@ class Query
 		return $this;
     }
 
-
-    public function getStdClass($data)
-    {
-        $stdClass = new \stdClass();
-        foreach ($data as $attr=>$value) {
-            $stdClass->$attr = $value;
-        }
-
-        return $stdClass;
-    }
-
     /**
      * 获取命令执行结果
      *<B>说明：</B>
@@ -934,16 +934,18 @@ class Query
      */
     public function getResult()
     {
-        $result = $this->getRawResult();
+        $query_result = $this->getRawResult();
         // 查询
         if ($this->buildMethod === static::BUILD_SELECT) {
-            // format 事件
-            foreach ($result as $key=>$res) {
+        	if (!empty($query_result)) {
+				// format 事件
+				foreach ($query_result as $key=>$res) {
 
-            }
+				}
+			}
         }
 
-        return $result;
+        return $query_result;
     }
 
     protected function getRawResult()
@@ -954,39 +956,44 @@ class Query
 
         if (!is_null($this->entity) && $this->buildMethod === static::BUILD_SELECT) {
             if (!empty($this->result)) {
-                $objs = [];
+                $entitys = [];
                 foreach ($this->result as $row) {
-                    $objs[] = $this->columnToAttr($row);
+					$entitys[] = $this->arrayToObject($row);
                 }
 
-                return $objs;
+                return $entitys;
             }
         }
 
-        return $this->result;
+		return $this->result;
     }
 
     /**
-     * 格式化查询数据
+     * 数组转对象
      *<B>说明：</B>
      *<pre>
      * 略
      *</pre>
-     * @param array $row
-     * @return  mixed
+     * @param array $rows
+     * @return mixed
      */
-    protected function columnToAttr($row)
+    protected function arrayToObject($rows)
     {
-        if (is_bool($this->entity)) {
-            $row = $this->getStdClass($row);
-        } else if (is_string($this->entity)) {
-            /** @var BaseEntity $className **/
-            $className = $this->entity;
-            $row = $className::makeByColumn($row);
-        }
+		if (is_bool($this->entity)) {
+			$stdClass = new \stdClass();
+			foreach ($rows as $attr=>$value) {
+				$stdClass->$attr = $value;
+			}
 
-        return $row;
-    }
+			return $stdClass;
+		} else if (is_string($this->entity)) {
+			/** @var BaseEntity $className **/
+			$className = $this->entity;
+			$rows = $className::makeByColumn($rows);
+		}
+
+		return $rows;
+	}
 
 	/**
 	 * 克隆当前　Query
@@ -997,7 +1004,7 @@ class Query
 	 * @param array $options
 	 * @return Query
 	 */
-	public function cloneQuery($options)
+	public function cloneQuery(array $options = [])
 	{
 		$class = new ReflectionClass($this);
 		$attrs = [];
@@ -1018,39 +1025,25 @@ class Query
 	}
 
 	/**
-	 * 分离带as的表名
+	 * 是否写操作
 	 *<B>说明：</B>
 	 *<pre>
 	 *  略
 	 *</pre>
-	 * @param string $tablename 表名 比如user as name
-	 * @return array
-	 * array('表名','表别名')
+	 * @param boolean $isWrite
+	 * @return static
 	 */
-	protected function _separateTableName($tablename = '')
+	public function asWrite(bool $isWrite = true):self
 	{
-		$preg =  '/^(\w+)\s+AS\s+(\w+)\s*.*/i';
-		preg_match ($preg, $tablename,$table);
-		if (empty($table)) {
-			return [$tablename,''];
-		} else {
-			return [$table[1],$table[2]];
-		}
+		$this->isWrite = $isWrite;
+
+		return $this;
 	}
 
-
-    /**
-     * 是否写操作
-     *<B>说明：</B>
-     *<pre>
-     *  略
-     *</pre>
-     * @param boolean $toUpdate
-     */
-    public function toUpdate($toUpdate = true)
-    {
-        $this->isWrite = $toUpdate;
-    }
+	public function asWriteStatus():bool
+	{
+		return $this->isWrite;
+	}
 
     /**
      *  获取当前db 连接 对象
@@ -1063,95 +1056,23 @@ class Query
     public function getDb()
     {
         $dbConn = null;
-        if (!empty($this->entity) && $this->isWrite == false && !$this->asMaster()) {
+        if (!empty($this->entity) && $this->asWriteStatus() == false && !$this->asMasterStatus()) {
             $dbslave = $this->entity::dbSlave();
             if (!empty($dbslave)) {
-                $dbConn = $this->dbsession->getDb($this,$this->isWrite,$dbslave,true);
+                $dbConn = $this->dbsession->getDb($this,$dbslave,true);
             }
         }
 
         if (empty($dbConn)) {
-            $dbConn = $this->dbsession->getDb($this,$this->isWrite,$this->getDbkey());
+            $dbConn = $this->dbsession->getDb($this,$this->getDbkey());
         }
 
         return $dbConn;
     }
 
-    /**
-     * 构建命令
-     *<B>说明：</B>
-     *<pre>
-     *  将query 参数　转化标准格式
-     *</pre>
-     * @return QueryCommand
-     */
-	public function buildParamsCommand()
-    {
-        $dbConn = $this->getDb();
-
-        return $dbConn->getQueryBuilder()->buildParamsCommand($this);
-    }
-
-    /**
-     * 构建原始命令
-     *<B>说明：</B>
-     *<pre>
-     *  直接执行sql语句
-     *</pre>
-     * @return QueryCommand
-     */
-    public function buildRawCommand()
-    {
-        $dbConn = $this->getDb();
-
-        return $dbConn->getQueryBuilder()->buildRawCommand($this);
-    }
-
     public function getQueryBuilder():BaseQueryBuilder
 	{
 		return $this->getDb()->getQueryBuilder();
-	}
-
-	/**
-	 * 构建自增序列名
-	 *<B>说明：</B>
-	 *<pre>
-	 *  略
-	 *</pre>
-	 * @return string
-	 */
-    public function buildLastIdSequence()
-	{
-		$sequence = '';
-		if (is_string($this->seq) && !empty($this->seq)) {
-
-		} else {
-			$sequence = '';
-		}
-	}
-
-	/**
-	 * 分离带as表名
-	 *<B>说明：</B>
-	 *<pre>
-	 *  略
-	 *</pre>
-	 * @param string $tablename 表名 比如user as name 、user
-	 * @return array  表分离后的数组
-	 *<pre>
-	 *   $out = ['user','u'] user表名,u 表别名
-	 *</pre>
-	 */
-	protected function splitTableName($tablename = '')
-	{
-		$preg =  '/^(.+)\s+AS\s+(.+)\s*.*/i';
-		preg_match ($preg, $tablename,$out);
-
-		if (empty($out)) {
-			return [$tablename,''];
-		}
-
-		return [$out[1],$out[2]];
 	}
 
 	public function setBuildResult($key,$result)
@@ -1170,6 +1091,40 @@ class Query
 		} else {
 			return $this->build_results;
 		}
+	}
+
+	/**
+	 * 构建命令
+	 *<B>说明：</B>
+	 *<pre>
+	 *  将query参数转化标准格式
+	 *</pre>
+	 * @return QueryCommand
+	 */
+	public function buildQueryCommand():QueryCommand
+	{
+		$dbConn = $this->getDb();
+		if (!empty($this->rawSql)) {
+			$querycmd = $dbConn->getQueryBuilder()->buildRawCommand($this);
+		} else {
+			$querycmd = $dbConn->getQueryBuilder()->buildParamsCommand($this);
+		}
+
+		return $querycmd;
+	}
+
+	public function toSql()
+	{
+		$dbConn = $this->getDb();
+		if (!empty($this->rawSql)) {
+			$querycmd = $dbConn->getQueryBuilder()->buildRawCommand($this);
+		} else {
+			$querycmd = $dbConn->getQueryBuilder()->buildParamsCommand($this);
+		}
+
+		$sql = $this->dbsession->buildSqlByCommand($querycmd);
+
+		return $sql;
 	}
 
 }

@@ -1,6 +1,7 @@
 <?php
 namespace horm\pools;
 
+use horm\base\BaseConnection;
 use horm\base\DbConnection;
 use horm\Dbsession;
 
@@ -60,7 +61,7 @@ abstract class ConnectionPool
      *</pre>
      * @return DbConnection
      */
-    public function createConnection():DbConnection
+    public function createConnection():BaseConnection
     {
         $dbconn = $this->dbsession->makeDbConnection($this->dbKey,$this->dbconf);
         $dbconn->setConnectionPool($this);
@@ -86,6 +87,6 @@ abstract class ConnectionPool
      *</pre>
      * @return \horm\base\DbConnection
      */
-    abstract public function releaseConnection(DbConnection $dbConnection);
+    abstract public function releaseConnection(BaseConnection $dbConnection);
 
 }

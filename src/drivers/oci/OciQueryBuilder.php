@@ -14,26 +14,6 @@ use horm\builders\SqlQueryBuilder;
 class OciQueryBuilder extends SqlQueryBuilder
 {
 
-	/**
-     * 查询sql模板
-     *<B>说明：</B>
-     *<pre>
-     *  略
-     *</pre>
-     * @var string
-     */
-    protected $selectSql  = 'SELECT%DISTINCT% %FIELD% FROM %TABLE%%ALIAS%%JOIN%%WHERE%%GROUP%%HAVING%%ORDER% %UNION%%COMMENT%';
-
-    /**
-     * 插入sql模板
-     *<B>说明：</B>
-     *<pre>
-     *  略
-     *</pre>
-     * @var string
-     */
-    protected $insertSql = '%INSERT% INTO %TABLE% (%FIELD%) VALUES (%DATA%)';
-
     /**
      * 更新sql模板
      *<B>说明：</B>
@@ -64,8 +44,12 @@ class OciQueryBuilder extends SqlQueryBuilder
     {
         //todo 判断表别名
         $column_name = trim($column_name);
+        if ($column_name === 'rownum'){
+            return $column_name;
+        }
+
         if (!preg_match('/[,\'\"\*\(\)`.\s]/',$column_name)) {
-            $column_name = ''.$column_name.'';
+            $column_name = '"'.$column_name.'"';
         }
 
         return $column_name;
@@ -80,56 +64,74 @@ class OciQueryBuilder extends SqlQueryBuilder
         return '';
     }
 
-
-
-	    /**
-     * 替换SQL语句中表达式
-     *<B>说明：</B>
-     *<pre>
-     *  略
-     *</pre>
-     * @param string $sql sql语句
-     * @param Query $query sql参数
-     * @return string
-     */
-    public function parseSql(Query $query,$sql)
+    protected function parseAlias(Query $query,$alias = '')
     {
-		$offset = $query->getOffset();
-		$limit = $query->getLimit();
-		if (isset($offset)) {
-			$limitWhere = [
-				'rownum'=>['between',[$offset,$limit + $offset]]
-			];
-		} else {
-			$limitWhere = [
-				'rownum'=>['between',[1,$limit]]
-			];
-		}
+        $buildSql = '';
+        if (!empty($alias)) {
+            $buildSql = ' ' . $this->parseColumnName($query,$alias);
+        }
 
-		if (isset($limit) || isset($offset)) {
-			$query->setWhere($limitWhere);
-		}
+        return $buildSql;
+    }
 
+    protected function parseLimit(Query $query,$length = null,$offset = null)
+    {
+        $limitSql = '';
 
-        $sql   = str_replace(
-            ['%TABLE%','%DISTINCT%','%FIELD%','%ALIAS%','%JOIN%','%WHERE%','%GROUP%','%HAVING%','%ORDER%','%UNION%','%COMMENT%'],
-            [
-                $this->parseTable($query,$query->getTable()),
-                $this->parseDistinct($query,$query->getDistinct()),
-                $this->parseField($query,$query,$query->getField()),
-                $this->parseAlias($query,$query->getAlias()),
-                $this->parseJoin($query,$query->getJoin()),
-                $this->parseWhere($query,$query->getWhere()),
-                $this->parseGroup($query,$query->getGroup()),
-                $this->parseHaving($query,$query->getHaving()),
-                $this->parseOrder($query,$query->getOrder()),
-                $this->parseUnion($query,$query->getUnion()),
-			],$sql);
+        if (isset($length) || isset($offset)) {
+            if (isset($offset)) {
+                $limitSql = ' OFFSET '.$offset.' ROWS FETCH NEXT ' . $length . ' ROWS ONLY';
+            } else {
+                $limitSql = ' OFFSET 0 ROWS FETCH NEXT ' . $length . ' ROWS ONLY';
+            }
+        }
+
+        return $limitSql;
+    }
 
 
+    /**
+     * 批量插入记录
+     * @param Query $query 数据
+     * true 启用,false 禁用
+     * @return bool|int|void
+     */
+    public function insertAll(Query $query)
+    {
+        //批量插入数据，第一个参数必须是数组
+        $datas = $query->getData();
+
+        if (!is_array($datas[0])) {
+            return false;
+        }
+
+        //读取字段名数组
+        $fields = array_keys($datas[0]);
+        $sql_fields = implode(',', array_map(function($field)use($query){return $this->parseColumnName($query,$field);},$fields));
+        $insert_sqls = [];
+        foreach ($datas as $data) {
+            $value = [];
+            foreach ($data as $columnName=>$columnValue){
+                if (is_array($columnValue)) {
+                    $operator = $columnValue[0];
+                    $value[] = $this->callExpressionMethod($query,$operator,$columnName,$columnValue[1]);
+                } else {
+                    $value[] = $this->buildColumnValue($query,$columnName,$columnValue);
+                }
+            }
+
+            $sql_values = '('.implode(',', $value).')';
+
+            $sql   =  ' INTO ' . $this->parseTable($query,$query->getTable())
+                . ' ('.$sql_fields.') VALUES '.$sql_values;
+            $insert_sqls[] = $sql;
+        }
+
+        // INSERT ALL
+        $sql = 'INSERT ALL ' . implode(' ',$insert_sqls) . " select 1 from dual";
 
         return $sql;
-	}
+    }
 
 
 	public function delete(Query $query)
