@@ -288,6 +288,13 @@ class CurdTest extends TestCase
         $this->assertTrue(count($users) == 2 && in_array($users[0]['id'],[1,2]) && in_array($users[1]['id'],[1,2]));
     }
 
+    public function testSubQuery()
+    {
+        $users_query = AdminUserEntity::setField('id')->setWhere(['id'=>[1,2,3,4],])->asQuery()->fetchAll();
+        $users = AdminUserEntity::setWhere(['id'=>['in',$users_query]])->setWhere(['status'=>1])->fetchAll();
+        $this->assertTrue(count($users) == 2 && in_array($users[0]['id'],[1,2]) && in_array($users[1]['id'],[1,2]));
+    }
+
     public function testLimit()
     {
         $users = AdminUserEntity::setField('id')->setWhere(['id'=>[1,2,3,4],'status'=>1])->setLimit(1)->fetchAll();

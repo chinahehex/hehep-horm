@@ -455,7 +455,7 @@ $hdbsession->query('hehe1')->queryCmd("select * from web_admin_users limit 2");
 
 ```
 
-## 预定义功能(scope)集合
+## 预定义功能(scope)
 
 - 定义预定义功能集合
 ```php
@@ -728,6 +728,12 @@ $users = AdminUserEntity::setField('tel')->setWhere(['id'=>[1,2,3,4]])->setGroup
 $users = AdminUserEntity::setField('tel')->setWhere(['id'=>[1,2,3,4]])->setGroup('tel,status,roleId')
         ->setOrHaving(['status'=>0,'roleId'=>['>',0]])->fetchAll();
 
+```
+
+## 子查询(subQuery)
+```php
+$users_query = AdminUserEntity::setField('id')->setWhere(['id'=>[1,2,3,4],])->asQuery()->fetchAll();
+$users = AdminUserEntity::setWhere(['id'=>['in',$users_query]])->setWhere(['status'=>1])->fetchAll();
 ```
 
 ## 聚合查询(scalar)
