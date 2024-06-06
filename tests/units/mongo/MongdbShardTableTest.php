@@ -1,5 +1,5 @@
 <?php
-namespace horm\tests\units\pgsql;
+namespace horm\tests\units\mongo;
 
 use horm\tests\common\mongo\AdminUserinfoShardTbNosqlEntity;
 use horm\tests\TestCase;
@@ -26,8 +26,8 @@ class MongdbShardTableTest extends TestCase
     {
 
         $number = AdminUserinfoShardTbNosqlEntity::addOne(['userId'=>1,'tel'=>'135xxxxxxxx','realName'=>'hehex','sex'=>'男','education'=>'高中']);
-        $table_name = 'web_admin_users_info_' . AdminUserinfoShardTbNosqlEntity::tbShardRule()->getSequence(null,1);
-        $this->assertTrue($number == 1 && strpos(AdminUserinfoShardTbNosqlEntity::getLastSql(),$table_name) !== false);
+        $table_name = 'web_admin_users_info_' . AdminUserinfoShardTbNosqlEntity::tbShardRule()->getShardId(null,1);
+        $this->assertTrue($number == 1 && strpos(AdminUserinfoShardTbNosqlEntity::getLastCmd(),$table_name) !== false);
 
         // 批量添加
         $datas = [
@@ -44,8 +44,8 @@ class MongdbShardTableTest extends TestCase
 
         AdminUserinfoShardTbNosqlEntity::addOne(['userId'=>1,'tel'=>'135xxxxxxxx','realName'=>'hehex','sex'=>'男','education'=>'高中']);
         $number = AdminUserinfoShardTbNosqlEntity::updateOne(['tel'=>'135xxxx' .  rand(10000,99999)],['userId'=>1]);
-        $table_name = 'web_admin_users_info_' . AdminUserinfoShardTbNosqlEntity::tbShardRule()->getSequence(null,1);
-        $this->assertTrue($number == 1 && strpos(AdminUserinfoShardTbNosqlEntity::getLastSql(),$table_name) !== false);
+        $table_name = 'web_admin_users_info_' . AdminUserinfoShardTbNosqlEntity::tbShardRule()->getShardId(null,1);
+        $this->assertTrue($number == 1 && strpos(AdminUserinfoShardTbNosqlEntity::getLastCmd(),$table_name) !== false);
 
     }
 
@@ -56,8 +56,8 @@ class MongdbShardTableTest extends TestCase
 
         $delete_number = AdminUserinfoShardTbNosqlEntity::setWhere(['userId'=>2])->deleteOne();
 
-        $table_name = 'web_admin_users_info_' . AdminUserinfoShardTbNosqlEntity::tbShardRule()->getSequence(null,2);
-        $this->assertTrue($delete_number == 1 && strpos(AdminUserinfoShardTbNosqlEntity::getLastSql(),$table_name) !== false);
+        $table_name = 'web_admin_users_info_' . AdminUserinfoShardTbNosqlEntity::tbShardRule()->getShardId(null,2);
+        $this->assertTrue($delete_number == 1 && strpos(AdminUserinfoShardTbNosqlEntity::getLastCmd(),$table_name) !== false);
 
     }
 

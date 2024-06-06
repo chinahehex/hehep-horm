@@ -68,7 +68,7 @@ trait  Partition
 			$shard_columns = $query->getShard();
 			if (!empty($shard_columns) && isset($shard_columns[$this->dbShardRule->getFields()])) {
 				$shard_value = $shard_columns[$this->dbShardRule->getFields()];
-				$shardId = $this->dbShardRule->getSequence($this, $shard_value);
+				$shardId = $this->dbShardRule->getShardId($this, $shard_value);
 				$shardDb = $this->buildShardname($query->getDbkey(),$shardId);
 				$queryList[$shardDb] = $query->cloneQuery(['dbkey'=>$shardDb]);
 			} else {
@@ -126,7 +126,7 @@ trait  Partition
 			$shard_columns = $query->getShard();
 			if (!empty($shard_columns) && isset($shard_columns[$this->tbShardRule->getFields()])) {
 				$shard_value = $shard_columns[$this->tbShardRule->getFields()];
-				$shardId = $this->tbShardRule->getSequence($this, $shard_value);
+				$shardId = $this->tbShardRule->getShardId($this, $shard_value);
 				$shardTable = $this->buildShardname($query->getTable(),$shardId);
 				$queryList[$shardTable] = $query->cloneQuery(['table' => $shardTable]);
 			} else {
@@ -182,7 +182,7 @@ trait  Partition
 		$shard_columns = $query->getShard();
 		if (!empty($shard_columns) && isset($shard_columns[$this->tbShardRule->getFields()])) {
 			$shard_value = $shard_columns[$this->tbShardRule->getFields()];
-			$shardId = $this->tbShardRule->getSequence($this, $shard_value);
+			$shardId = $this->tbShardRule->getShardId($this, $shard_value);
 			$shardTable = $this->buildShardname($query->getTable(),$shardId);
 			$queryList[$shardTable] = $query->cloneQuery(['table' => $shardTable]);
 		} else {
@@ -220,7 +220,7 @@ trait  Partition
 		$shard_columns = $query->getShard();
 		if (!empty($shard_columns) && isset($shard_columns[$this->dbShardRule->getFields()])) {
 			$shard_value = $shard_columns[$this->dbShardRule->getFields()];
-			$shardId = $this->dbShardRule->getSequence($this, $shard_value);
+			$shardId = $this->dbShardRule->getShardId($this, $shard_value);
 			$shardDb = $this->buildShardname($query->getDbkey(),$shardId);
 			$queryList[$shardDb] = $query->cloneQuery(['dbkey'=>$shardDb]);
 		} else {
@@ -320,7 +320,7 @@ trait  Partition
 							$inShardList = [];
 							// in 操作
 							foreach ($columnValue[1] as $val) {
-								$shardId = $shardRule->getSequence($this, $val);
+								$shardId = $shardRule->getShardId($this, $val);
 								$inShardList[$shardId][] = $val;
 							}
 							foreach ($inShardList as $shardId => $value) {
@@ -328,14 +328,14 @@ trait  Partition
 							}
 						} else {
 							// 按原来操作符
-							$shardId = $shardRule->getSequence($this,  $columnValue[1]);
+							$shardId = $shardRule->getShardId($this,  $columnValue[1]);
 							$shardList[$shardId] = [$columnName, [$operator,  $columnValue[1]]];
 						}
 					} else {
 						$inShardList = [];
 						// in 操作
 						foreach ($columnValue as $val) {
-							$shardId = $shardRule->getSequence($this, $val);
+							$shardId = $shardRule->getShardId($this, $val);
 							$inShardList[$shardId][] = $val;
 						}
 						foreach ($inShardList as $shardId => $value) {
@@ -350,7 +350,7 @@ trait  Partition
 			}
 		} else {
 			// 字符串等于操作
-			$shardId = $shardRule->getSequence($this, $columnValue);
+			$shardId = $shardRule->getShardId($this, $columnValue);
 			$shardList[$shardId] = [$columnName, $columnValue];
 		}
 

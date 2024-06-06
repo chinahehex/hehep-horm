@@ -1,14 +1,8 @@
 <?php
 namespace  horm\base;
 
-use horm\base\BaseQueryBuilder;
-use horm\base\DbConnection;
-use Exception;
-use horm\Dbsession;
-use horm\Entity;
-
 /**
- * db 表达式类
+ * db 原始表达式类
  *<B>说明：</B>
  *<pre>
  * 略

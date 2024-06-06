@@ -14,7 +14,7 @@ abstract class BaseConnection
 {
 
     /**
-     * 创建db 链接
+     * db 管理器
      *<B>说明：</B>
      *<pre>
      * 略
@@ -34,7 +34,7 @@ abstract class BaseConnection
     public $dbKey = '';
 
 	/**
-	 * 数据库连接参数配置
+	 * 数据库连接配置参数
 	 *<B>说明：</B>
 	 *<pre>
 	 *  略
@@ -43,7 +43,15 @@ abstract class BaseConnection
 	 */
 	public $config = [];
 
-	protected static $ref_method_dict = [];
+    /**
+     * 反射连接方法的缓存
+     *<B>说明：</B>
+     *<pre>
+     *  略
+     *</pre>
+     * @var array
+     */
+	protected static $ref_method_cache = [];
 
     /**
      * 构造方法
@@ -66,16 +74,16 @@ abstract class BaseConnection
     {
 
         $ref_params = [];
-        if (!isset(static::$ref_method_dict[$method])) {
+        if (!isset(static::$ref_method_cache[$method])) {
             $reflectionMethod = new \ReflectionMethod($dbconn_class, $method);
             foreach ($reflectionMethod->getParameters() as $parameter) {
                 $name = $parameter->getName();
                 $ref_params[$name] = $parameter->isDefaultValueAvailable() ? $parameter->getDefaultValue() : null;
             }
 
-            static::$ref_method_dict[$method] = $ref_params;
+            static::$ref_method_cache[$method] = $ref_params;
         } else {
-            $ref_params = static::$ref_method_dict[$method];
+            $ref_params = static::$ref_method_cache[$method];
         }
 
         $method_params = [];
@@ -103,16 +111,29 @@ abstract class BaseConnection
         return $this->config['prefix'];
     }
 
-    public function getConfig($name)
+    /**
+     * 获取配置参数
+     *<B>说明：</B>
+     *<pre>
+     *  略
+     *</pre>
+     * @param string|null 返回指定配置项对应的值,null表示返回全部参数
+     * @return string
+     */
+    public function getConfig($name = null)
     {
-        return isset($this->config[$name]) ? $this->config[$name] : '';
+        if (is_null($name)) {
+            return $this->config;
+        } else {
+            return isset($this->config[$name]) ? $this->config[$name] : '';
+        }
     }
 
     /**
-     * 获取主从状态
+     * 是否开启主从模式
      *<B>说明：</B>
      *<pre>
-     *  ；略
+     *  略
      *</pre>
      * @return boolean
      */
@@ -122,7 +143,7 @@ abstract class BaseConnection
     }
 
     /**
-     * 获取主从状态
+     * 获取从库db key
      *<B>说明：</B>
      *<pre>
      *  略
@@ -149,18 +170,18 @@ abstract class BaseConnection
     }
 
 	/**
-	 * 执行查询 返回数据行
+	 * 执行查询,返回数据行
 	 *<B>说明：</B>
 	 *<pre>
-	 *  只执行查询的sql
+	 *  只执行查询的命令
 	 *</pre>
-	 * @param QueryCommand $command  sql 命令对象
+	 * @param QueryCommand $queryCommand  sql 命令对象
 	 * @return array|boolean
 	 *<pre>
 	 *  略
 	 *</pre>
 	 */
-	abstract public function callQuery($command);
+	abstract public function callQuery(QueryCommand $queryCommand);
 
 	/**
 	 * 执行更新sql语句
@@ -168,33 +189,46 @@ abstract class BaseConnection
      *<pre>
      *  只执行更新，删除，插入等sql语句
      *</pre>
-	 * @param QueryCommand $command sql命令对象
+	 * @param QueryCommand $queryCommand sql命令对象
 	 * @return int
 	 */
-    abstract public function callExecute($command);
+    abstract public function callExecute(QueryCommand $queryCommand);
 
+    /**
+     * 开启事务
+     */
     public function beginTransaction()
     {
 
     }
 
-    public function commit()
+    /**
+     * 提交事务
+     */
+    public function commitTransaction()
     {
 
     }
 
-    public function rollback()
+    /**
+     * 回滚事务
+     */
+    public function rollbackTransaction()
     {
 
     }
 
-    public function getLastInsertID($sequence = '')
+    /**
+     * 获取最后插入的自增id
+     * @param string $sequence
+     */
+    public function getLastId($sequence = '')
     {
 
     }
 
 	/**
-	 * 获取sql生成对象
+	 * 获取名构建对象
 	 *<B>说明：</B>
 	 *<pre>
 	 *  略

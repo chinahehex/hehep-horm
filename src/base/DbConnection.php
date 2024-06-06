@@ -113,7 +113,6 @@ class DbConnection extends BaseConnection
                 $this->conn = new PDO($this->config['dsn'], $username, $password,$options);
 
                 return $this->conn;
-
             } catch (PDOException $e) {
                 throw new PDOException($e->getMessage());
             }
@@ -123,17 +122,20 @@ class DbConnection extends BaseConnection
 	}
 
     /**
-     * 连接数据库
+     * 获取连接
      *<B>说明：</B>
      *<pre>
      *  略
      *</pre>
+     * @return PDO
      */
-    protected function initConnect()
+    public function getConn():PDO
     {
         if (is_null($this->conn)) {
             $this->conn = $this->connect();
         }
+
+        return $this->conn;
     }
 
     /**
@@ -146,7 +148,7 @@ class DbConnection extends BaseConnection
     protected function resetConnect()
     {
         $this->conn = null;
-        $this->initConnect();
+        $this->getConn();
     }
 
     /**
@@ -171,11 +173,10 @@ class DbConnection extends BaseConnection
 	 * @param QueryCommand $command  sql 命令对象
 	 * @return array
 	 */
-	public function callQuery($command)
+	public function callQuery(QueryCommand $queryCommand)
 	{
-        $this->initConnect();
 
-        $pdoStatement = $this->executeCommand($command);
+        $pdoStatement = $this->executeCommand($queryCommand);
 
         return $this->getResult($pdoStatement);
 	}
@@ -186,13 +187,12 @@ class DbConnection extends BaseConnection
      *<pre>
      *  略
      *</pre>
-     * @param QueryCommand $command sql命令对象
+     * @param QueryCommand $queryCommand sql命令对象
      * @return int
      */
-    public function callExecute($command)
+    public function callExecute(QueryCommand $queryCommand)
     {
-        $this->initConnect();
-        $pdoStatement = $this->executeCommand($command);
+        $pdoStatement = $this->executeCommand($queryCommand);
 
         return $pdoStatement->rowCount();
     }
@@ -203,14 +203,14 @@ class DbConnection extends BaseConnection
      *<pre>
      *  只执行查询的sql
      *</pre>
-     * @param QueryCommand $command  sql 命令对象
+     * @param QueryCommand $queryCommand  sql命令对象
      * @return PDOStatement|boolean
      */
-	protected function createPDOStatement($command):PDOStatement
+	protected function createPDOStatement(QueryCommand $queryCommand):PDOStatement
     {
-        $pdoStatement = $this->conn->prepare($command->getCommand());
+        $pdoStatement = $this->getConn()->prepare($queryCommand->getCommand());
         // 参数绑定
-        foreach ($command->getParams() as $key => $val) {
+        foreach ($queryCommand->getParams() as $key => $val) {
             if (is_array($val)) {
                 $pdoStatement->bindValue($key, $val[0], $val[1]);
             } else {
@@ -222,13 +222,11 @@ class DbConnection extends BaseConnection
     }
 
 
-    protected function executeCommand($command):PDOStatement
+    protected function executeCommand(QueryCommand $queryCommand):PDOStatement
     {
-        $this->initConnect();
 
-        $pdoStatement = $this->createPDOStatement($command);
+        $pdoStatement = $this->createPDOStatement($queryCommand);
         try {
-
             $result = $pdoStatement->execute();
             if (empty($result)) {
                 $errorInfo = $pdoStatement->errorInfo();
@@ -239,7 +237,7 @@ class DbConnection extends BaseConnection
         } catch (Exception $e) {
             if ($this->checkReconnect($e)) {
                 $this->resetConnect();
-                return $this->executeCommand($command);
+                return $this->executeCommand($queryCommand);
             }
 
             if ($e instanceof PDOException) {
@@ -295,14 +293,14 @@ class DbConnection extends BaseConnection
 	 */
 	public function beginTransaction()
 	{
-        $this->initConnect();
+	    $conn = $this->getConn();
         if (!$this->conn) {
             return false;
         }
 
         //数据rollback 支持
         if ($this->transTimes == 0) {
-            $result = $this->conn->beginTransaction();
+            $result = $conn->beginTransaction();
 			if (!$result) {
 				return false;
 			}
@@ -321,7 +319,7 @@ class DbConnection extends BaseConnection
 	 *</pre>
      * @return boolean true 表示事务提交成功，false 表示事务提交失败
 	 */
-	public function commit()
+	public function commitTransaction()
 	{
         if ($this->transTimes > 0) {
             $result = $this->conn->commit();
@@ -342,7 +340,7 @@ class DbConnection extends BaseConnection
 	 *</pre>
 	 * @return boolean true 表示事务回滚成功，false 表示事务回滚失败
 	 */
-	public function rollback()
+	public function rollbackTransaction()
 	{
         if ($this->transTimes > 0) {
             $result = $this->conn->rollback();
@@ -379,38 +377,10 @@ class DbConnection extends BaseConnection
 	 *</pre>
 	 * @return string|int
 	 */
-    public function getLastInsertID($sequence = '')
+    public function getLastId($sequence = '')
 	{
         return $this->conn->lastInsertId();
     }
-
-	/**
-	 * 析构方法
-	 *<B>说明：</B>
-	 *<pre>
-	 * 	释放查询资源
-	 * 	关闭连接
-	 *</pre>
-	 * @return string
-	 */
-	public function __destruct()
-	{
-        // 关闭连接
-        $this->close();
-    }
-
-    /**
-     * 关闭数据库
-     *<B>说明：</B>
-     *<pre>
-     *  略
-     *</pre>
-     * @return void
-     */
-    public function close()
-	{
-        $this->conn = null;
-	}
 
     /**
      * 获得查询数据
@@ -439,13 +409,12 @@ class DbConnection extends BaseConnection
      */
     public function insert(string $table,array $data = [],$options = [])
     {
-        $this->initConnect();
 
         $query_opts = array_merge($options,['table'=>$table,'data'=>$data]);
         $query = (new Query($query_opts));
         $query->setBuild('insert',[$query]);
 
-        $queryCommand = $this->getQueryBuilder()->buildParamsCommand($query);
+        $queryCommand = $this->getQueryBuilder()->buildQueryCommand($query);
         $pdoStatement = $this->executeCommand($queryCommand);
 
         return $pdoStatement->rowCount();
@@ -461,13 +430,11 @@ class DbConnection extends BaseConnection
      */
     public function insertAll(string $table,array $data = [],$options = [])
     {
-        $this->initConnect();
-
         $query_opts = array_merge($options,['table'=>$table,'data'=>$data]);
         $query = (new Query($query_opts));
         $query->setBuild('insertAll',[$query]);
 
-        $queryCommand = $this->getQueryBuilder()->buildParamsCommand($query);
+        $queryCommand = $this->getQueryBuilder()->buildQueryCommand($query);
         $pdoStatement = $this->executeCommand($queryCommand);
 
         return $pdoStatement->rowCount();
@@ -483,13 +450,11 @@ class DbConnection extends BaseConnection
      */
     public function update(string $table,array $data = [],array $condition = [],array $options = [])
     {
-        $this->initConnect();
-
         $query_opts = array_merge($options,['table'=>$table,'data'=>$data,'where'=>$condition]);
         $query = (new Query($query_opts));
         $query->setBuild('update',[$query]);
 
-        $queryCommand = $this->getQueryBuilder()->buildParamsCommand($query);
+        $queryCommand = $this->getQueryBuilder()->buildQueryCommand($query);
         $pdoStatement = $this->executeCommand($queryCommand);
 
         return $pdoStatement->rowCount();
@@ -505,13 +470,12 @@ class DbConnection extends BaseConnection
      */
     public function delete(string $table,array $condition = [],array $options = [])
     {
-        $this->initConnect();
 
         $query_opts = array_merge($options,['table'=>$table,'where'=>$condition]);
         $query = (new Query($query_opts));
         $query->setBuild('delete',[$query]);
 
-        $queryCommand = $this->getQueryBuilder()->buildParamsCommand($query);
+        $queryCommand = $this->getQueryBuilder()->buildQueryCommand($query);
         $pdoStatement = $this->executeCommand($queryCommand);
 
         return $pdoStatement->rowCount();
@@ -527,13 +491,12 @@ class DbConnection extends BaseConnection
      */
     public function fetchOne(string $table,array $condition = [],array $options = [])
     {
-        $this->initConnect();
 
         $query_opts = array_merge($options,['table'=>$table,'where'=>$condition,'limit'=>1]);
         $query = (new Query($query_opts));
         $query->setBuild('select',[$query]);
 
-        $queryCommand = $this->getQueryBuilder()->buildParamsCommand($query);
+        $queryCommand = $this->getQueryBuilder()->buildQueryCommand($query);
         $pdoStatement = $this->executeCommand($queryCommand);
         $queryResult = $this->getResult($pdoStatement);
         if (empty($queryResult)) {
@@ -558,7 +521,7 @@ class DbConnection extends BaseConnection
         $query = (new Query($query_opts));
         $query->setBuild('select',[$query]);
 
-        $queryCommand = $this->getQueryBuilder()->buildParamsCommand($query);
+        $queryCommand = $this->getQueryBuilder()->buildQueryCommand($query);
         $pdoStatement = $this->executeCommand($queryCommand);
         $queryResult = $this->getResult($pdoStatement);
 
@@ -573,7 +536,7 @@ class DbConnection extends BaseConnection
     public function execSql(string $sql,array $params = [])
     {
         $query = (new Query())->setRawCommand($sql,$params);
-        $queryCommand = $this->getQueryBuilder()->buildRawCommand($query);
+        $queryCommand = $this->getQueryBuilder()->buildQueryCommand($query);
         $pdoStatement = $this->executeCommand($queryCommand);
 
         return $pdoStatement->rowCount();
@@ -587,13 +550,38 @@ class DbConnection extends BaseConnection
     public function querySql(string $sql,array $params = [])
     {
         $query = (new Query())->setRawCommand($sql,$params);
-        $queryCommand = $this->getQueryBuilder()->buildRawCommand($query);
+        $queryCommand = $this->getQueryBuilder()->buildQueryCommand($query);
         $pdoStatement = $this->executeCommand($queryCommand);
 
         return $this->getResult($pdoStatement);
     }
 
+    /**
+     * 关闭数据库
+     *<B>说明：</B>
+     *<pre>
+     *  略
+     *</pre>
+     * @return void
+     */
+    public function close()
+    {
+        $this->conn = null;
+    }
 
-
+    /**
+     * 析构方法
+     *<B>说明：</B>
+     *<pre>
+     * 	释放查询资源
+     * 	关闭连接
+     *</pre>
+     * @return string
+     */
+    public function __destruct()
+    {
+        // 关闭连接
+        $this->close();
+    }
 
 }

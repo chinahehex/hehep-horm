@@ -45,7 +45,7 @@ class CurdTest extends TestCase
 
         $this->assertTrue($userId > 0);
         $adminUserEntity = AdminUserEntity::setWhere(['username'=>"hehe4"])
-            ->asArray()
+            ->asArray()->setOrder(['id'=>SORT_DESC])
             ->fetchOne();
         $this->assertEquals("hehe4",$adminUserEntity['username']);
 
@@ -99,6 +99,14 @@ class CurdTest extends TestCase
 
         $userEntitys = AdminUserEntity::setWhere(['id'=>[1,2]])->asArray()->fetchAll();
         $this->assertEquals(2,count($userEntitys));
+    }
+
+    public function testUnion()
+    {
+        $query = AdminUserEntity::asQuery()->fetchAll(['id'=>[1,2]]);
+        $adminUserEntitys = AdminUserEntity::asArray()->setUnion($query)->fetchAll(['id'=>3]);
+
+        $this->assertEquals(3,count($adminUserEntitys));
     }
 
     public function testDelete()
@@ -379,6 +387,8 @@ class CurdTest extends TestCase
 
         $sum = AdminUserEntity::setWhere(['status'=>1])->querySum('id');
         $this->assertTrue($sum == 3);
+
+
     }
 
     // 分组查询
@@ -562,20 +572,22 @@ class CurdTest extends TestCase
         );
 
         // 查询sql
-        $users = $this->hdbsession->querySql('select * from web_admin_users where id in (1,2)');
+        $users = $this->hdbsession->queryCmd('select * from web_admin_users where id in (1,2)');
         $this->assertTrue(!empty($users) &&
             count($users) == 2 &&
             $users[0]['username'] == 'hehe1' &&
             $users[1]['username'] == 'admin'
         );
 
-        $number = $this->hdbsession->execSql("update web_admin_users set tel='135xxxxbbbb' where id = 2");
+        $number = $this->hdbsession->execCmd("update web_admin_users set tel='135xxxxbbbb' where id = 2");
         $this->assertTrue($number == 1);
 
-        $number = $this->hdbsession->execSql('update web_admin_users set tel=:tel where id = 2',['tel'=>'135xxxx' .  rand(10000,99999)]);
+        $number = $this->hdbsession->execCmd('update web_admin_users set tel=:tel where id = 2',['tel'=>'135xxxx' .  rand(10000,99999)]);
         $this->assertTrue($number == 1);
 
     }
+
+
 
 
 

@@ -95,7 +95,7 @@ class TransactionGroup
      */
     public function beginTransaction()
     {
-        $this->commit();
+        $this->commitTransaction();
 
         return true;
     }
@@ -108,11 +108,11 @@ class TransactionGroup
      *</pre>
      * @return boolean false 只要其中一个事务提交失败,true 全部数据库事务提交成功
      */
-    public function commit()
+    public function commitTransaction()
     {
         $result = true;
         foreach ($this->transactions as $transaction) {
-            $result = $transaction->commit();
+            $result = $transaction->commitTransaction();
             if ($result == false) {
                 break;
             }
@@ -132,11 +132,11 @@ class TransactionGroup
      *</pre>
      * @return boolean
      */
-    public function rollback()
+    public function rollbackTransaction()
     {
         $result = true;
         foreach ($this->transactions as $transaction) { // 事务提交失败，回滚事务
-            $result = $transaction->rollback();
+            $result = $transaction->rollbackTransaction();
             if ($result == false) {
                 break;
             }

@@ -24,7 +24,7 @@ class ProcessConnectionPool extends ConnectionPool
     protected $dbconn = null;
 
     /**
-     * 获取一个可用数据库连接
+     * 从连接池中获取一个可用数据库连接
      *<B>说明：</B>
      *<pre>
      * 略

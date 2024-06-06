@@ -35,7 +35,7 @@ abstract class ConnectionPool
     protected $dbconf = null;
 
     /**
-     * 创建db 链接
+     * db 管理器
      *<B>说明：</B>
      *<pre>
      * 略

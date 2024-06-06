@@ -14,6 +14,26 @@ use horm\builders\SqlQueryBuilder;
 class PgsqlQueryBuilder extends SqlQueryBuilder
 {
     /**
+     * 更新sql模板
+     *<B>说明：</B>
+     *<pre>
+     *  略
+     *</pre>
+     * @var string
+     */
+    protected $updateSql = 'UPDATE [TABLE][ALIAS] SET [SET][JOIN][WHERE][ORDER][LOCK]';
+
+    /**
+     * 删除sql模板
+     *<B>说明：</B>
+     *<pre>
+     *  略
+     *</pre>
+     * @var string
+     */
+    protected $deleteSql = 'DELETE FROM [TABLE][ALIAS][JOIN][WHERE][ORDER][LOCK]';
+
+    /**
      * 字段和表名处理
      * @access protected
      * @param string $column_name
@@ -30,7 +50,7 @@ class PgsqlQueryBuilder extends SqlQueryBuilder
         return $column_name;
     }
 
-    protected function parseLock(Query $query,$lock = false)
+    protected function parseLock(Query $query,bool $lock = false)
     {
         if (!$lock) {
             return '';
@@ -64,11 +84,12 @@ class PgsqlQueryBuilder extends SqlQueryBuilder
     public function update(Query $query)
     {
         $sql = str_replace(
-            ['%TABLE%', '%SET%', '%JOIN%', '%WHERE%', '%ORDER%', '%LIMIT%', '%LOCK%'],
+            ['[TABLE]','[ALIAS]','[SET]', '[JOIN]', '[WHERE]', '[ORDER]', '[LOCK]'],
             [
                 $this->parseTable($query,$query->getTable()),
                 $this->parseAlias($query,$query->getAlias()),
                 $this->parseSet($query,$query->getData()),
+                $this->parseJoin($query,$query->getJoin()),
                 $this->parseWhere($query,$query->getWhere()),
                 $this->parseOrder($query,$query->getOrder()),
                 $this->parseLock($query,$query->getLock()),
@@ -80,18 +101,18 @@ class PgsqlQueryBuilder extends SqlQueryBuilder
     public function delete(Query $query)
     {
         $sql = str_replace(
-            ['%TABLE%', '%USING%', '%JOIN%', '%WHERE%', '%ORDER%', '%LIMIT%', '%LOCK%'],
+            ['[TABLE]', '[ALIAS]', '[JOIN]', '[WHERE]', '[ORDER]','[LOCK]'],
             [
                 $this->parseTable($query,$query->getTable()),
                 $this->parseAlias($query,$query->getAlias()),
+                $this->parseJoin($query,$query->getJoin()),
                 $this->parseWhere($query,$query->getWhere()),
                 $this->parseOrder($query,$query->getOrder()),
-                //$this->parseLimit($query->getLimit()),
                 $this->parseLock($query,$query->getLock()),
             ], $this->deleteSql);
 
         return $sql;
     }
-    
+
 
 }

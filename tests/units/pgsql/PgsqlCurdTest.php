@@ -79,8 +79,4 @@ class PgsqlCurdTest extends CurdTest
 
 
 
-
-
-
-
 }

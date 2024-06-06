@@ -1,6 +1,11 @@
 <?php
 namespace horm\base;
 
+/**
+ * 线程安全类
+ * Class SaleLocal
+ * @package horm\base
+ */
 class SaleLocal
 {
     protected $_attributes = [];

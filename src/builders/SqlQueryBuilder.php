@@ -19,7 +19,7 @@ class SqlQueryBuilder extends BaseQueryBuilder
      *</pre>
      * @var string
      */
-    protected $selectSql  = 'SELECT%DISTINCT% %FIELD% FROM %TABLE%%ALIAS%%JOIN%%WHERE%%GROUP%%HAVING%%ORDER%%LIMIT% %UNION%%COMMENT%';
+    protected $selectSql  = 'SELECT[DISTINCT] [FIELD] FROM [TABLE][ALIAS][JOIN][WHERE][GROUP][HAVING][UNION][ORDER][LIMIT]';
 
     /**
      * 插入sql模板
@@ -29,7 +29,7 @@ class SqlQueryBuilder extends BaseQueryBuilder
      *</pre>
      * @var string
      */
-    protected $insertSql = 'INSERT INTO %TABLE% (%FIELD%) VALUES (%DATA%)';
+    protected $insertSql = 'INSERT INTO [TABLE] ([FIELD]) VALUES ([DATA])';
 
     /**
      * 更新sql模板
@@ -39,7 +39,7 @@ class SqlQueryBuilder extends BaseQueryBuilder
      *</pre>
      * @var string
      */
-    protected $updateSql = 'UPDATE %TABLE% SET %SET% %JOIN% %WHERE% %ORDER%%LIMIT% %LOCK%';
+    protected $updateSql = 'UPDATE [TABLE][ALIAS] SET [SET][JOIN][WHERE][ORDER][LIMIT][LOCK]';
 
     /**
      * 删除sql模板
@@ -49,7 +49,7 @@ class SqlQueryBuilder extends BaseQueryBuilder
      *</pre>
      * @var string
      */
-    protected $deleteSql = 'DELETE FROM %TABLE% %USING% %JOIN% %WHERE% %ORDER%%LIMIT% %LOCK%';
+    protected $deleteSql = 'DELETE FROM [TABLE][ALIAS][JOIN][WHERE][ORDER][LIMIT][LOCK]';
 
 
     /**
@@ -76,7 +76,7 @@ class SqlQueryBuilder extends BaseQueryBuilder
         }
 
         $sql = str_replace(
-            ['%TABLE%', '%FIELD%', '%DATA%'],
+            ['[TABLE]', '[FIELD]', '[DATA]'],
             [
                 $this->parseTable($query,$query->getTable()),
                 implode(' , ', array_map(function($field) use($query){return $this->parseColumnName($query,$field);},$fields)),
@@ -105,8 +105,6 @@ class SqlQueryBuilder extends BaseQueryBuilder
 
         //读取字段名数组
         $fields = array_keys($datas[0]);
-        //格式化字段名，每个$fields 元素都调用parseKey 方法
-        //array_walk($fields, array($this, 'parseKey'));
         $values  =  array();
         foreach ($datas as $data) {
             $value   =  [];
@@ -141,11 +139,12 @@ class SqlQueryBuilder extends BaseQueryBuilder
     {
 
         $sql = str_replace(
-            ['%TABLE%', '%SET%', '%JOIN%', '%WHERE%', '%ORDER%', '%LIMIT%', '%LOCK%'],
+            ['[TABLE]','[ALIAS]', '[SET]', '[JOIN]', '[WHERE]', '[ORDER]', '[LIMIT]', '[LOCK]'],
             [
                 $this->parseTable($query,$query->getTable()),
                 $this->parseAlias($query,$query->getAlias()),
                 $this->parseSet($query,$query->getData()),
+                $this->parseJoin($query,$query->getJoin()),
                 $this->parseWhere($query,$query->getWhere()),
                 $this->parseOrder($query,$query->getOrder()),
                 $this->parseLimit($query,$query->getLimit()),
@@ -167,10 +166,11 @@ class SqlQueryBuilder extends BaseQueryBuilder
     public function delete(Query $query)
     {
         $sql = str_replace(
-            ['%TABLE%', '%USING%', '%JOIN%', '%WHERE%', '%ORDER%', '%LIMIT%', '%LOCK%'],
+            ['[TABLE]', '[ALIAS]', '[JOIN]', '[WHERE]', '[ORDER]', '[LIMIT]', '[LOCK]'],
             [
                 $this->parseTable($query,$query->getTable()),
                 $this->parseAlias($query,$query->getAlias()),
+                $this->parseJoin($query,$query->getJoin()),
                 $this->parseWhere($query,$query->getWhere()),
                 $this->parseOrder($query,$query->getOrder()),
                 $this->parseLimit($query,$query->getLimit()),
@@ -212,7 +212,6 @@ class SqlQueryBuilder extends BaseQueryBuilder
         $methods = ['count'=>'count','min'=>'min','max'=>'max','avg'=>'avg','sum'=>'sum'];
         if (!empty($method) && isset($methods[$method])) {
             $method = $methods[$method];
-            //$field = $method .'(' . $query->getField() . ') as ' .$this->parseColumnName($query,"__result");
             $name = $query->getField();
             $field[$name] = ['as',['__result',$method]];
             $query->setField($field);
@@ -255,7 +254,7 @@ class SqlQueryBuilder extends BaseQueryBuilder
     public function parseSql(Query $query,$sql_tpl)
     {
         $sql   = str_replace(
-            ['%TABLE%','%DISTINCT%','%FIELD%','%ALIAS%','%JOIN%','%WHERE%','%GROUP%','%HAVING%','%ORDER%','%LIMIT%','%UNION%','%COMMENT%'],
+            ['[TABLE]','[DISTINCT]','[FIELD]','[ALIAS]','[JOIN]','[WHERE]','[GROUP]','[HAVING]','[UNION]','[ORDER]','[LIMIT]'],
             [
                 $this->parseTable($query,$query->getTable()),
                 $this->parseDistinct($query,$query->getDistinct()),
@@ -265,9 +264,9 @@ class SqlQueryBuilder extends BaseQueryBuilder
                 $this->parseWhere($query,$query->getWhere()),
                 $this->parseGroup($query,$query->getGroup()),
                 $this->parseHaving($query,$query->getHaving()),
+                $this->parseUnion($query,$query->getUnion()),
                 $this->parseOrder($query,$query->getOrder()),
                 $this->parseLimit($query,$query->getLimit(),$query->getOffset()),
-                $this->parseUnion($query,$query->getUnion()),
             ],$sql_tpl);
 
         return $sql;
@@ -283,7 +282,7 @@ class SqlQueryBuilder extends BaseQueryBuilder
      * @param boolean $lock
      * @return string
      */
-    protected function parseLock(Query $query,$lock = false)
+    protected function parseLock(Query $query,bool $lock = false)
     {
         if (!$lock) {
             return '';
@@ -400,11 +399,11 @@ class SqlQueryBuilder extends BaseQueryBuilder
         foreach ($fields as $columnName=>$field){
             if (is_numeric($columnName) && is_array($field)) {
                 $fieldSqls =  array_merge($fieldSqls,$field);
-            } else if(is_numeric($columnName)) {// 字段串字段['column1','column2'], 没有别名
+            } else if(is_numeric($columnName) && is_string($field)) {// 字段串字段['column1','column2'], 没有别名
                 // 判断是否有表别名
                 $fieldSqls[] =  $this->parseColumnName($query,$field);
             } else {
-                if (is_array($field)) {// 别名为字符串
+                if (is_array($field)) {// 别名为字符串['column'=>['as','别名']] or ['column'=>['as',['别名','方法']]]
                     $fieldSqls[] =  $this->callExpressionMethod($query,$field[0],$columnName,$field[1]); ;
                 } else {// 别名为数组,表达式
                     $fieldSqls[] =  $this->parseColumnName($query,$columnName).' AS '.$this->parseColumnName($query,$field);
@@ -428,7 +427,7 @@ class SqlQueryBuilder extends BaseQueryBuilder
     {
         $buildSql = '';
         if (!empty($alias)) {
-            $buildSql = ' as ' . $this->parseColumnName($query,$alias);
+            $buildSql = ' AS ' . $this->parseColumnName($query,$alias);
         }
 
         return $buildSql;
@@ -598,7 +597,7 @@ class SqlQueryBuilder extends BaseQueryBuilder
 
         $sql_groups = array_map(function($field)use($query){return $this->parseColumnName($query,$field);},$groups);
 
-        return !empty($sql_groups)? ' group by ' . implode(',',$sql_groups) : '';
+        return !empty($sql_groups)? ' GROUP BY ' . implode(',',$sql_groups) : '';
     }
 
     /**
@@ -643,19 +642,19 @@ class SqlQueryBuilder extends BaseQueryBuilder
         if (empty($union))
             return '';
         if (!isset($union['_all']) || $union['_all'] === true) {
-            $unionSql  =   'UNION ALL ';
+            $unionSql  =   ' UNION ALL ';
             unset($union['_all']);
         } else {
-            $unionSql  =   'UNION  ';
+            $unionSql  =   ' UNION  ';
         }
 
-        $sql = [];
+        $sqls = [];
 
         foreach ($union as $query){
-            $sql[] = $unionSql . (is_string($query) ? $query : $this->buildQueryRawCommand($query));
+            $sqls[] = $unionSql . (is_string($query) ? $query : $this->buildQueryRawCommand($query));
         }
 
-        return implode(' ',$sql);
+        return implode(' ',$sqls);
     }
 
     /**

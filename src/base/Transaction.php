@@ -11,7 +11,7 @@ namespace  horm\base;
 class Transaction
 {
     /**
-     * 默认设置定义
+     * 数据库连接对象
      *<B>说明：</B>
      *<pre>
      *  略
@@ -54,9 +54,9 @@ class Transaction
      *</pre>
      * @return boolean false 只要其中一个事务提交失败,true 全部数据库事务提交成功
      */
-    public function commit()
+    public function commitTransaction()
     {
-        return $this->db->commit();
+        return $this->db->commitTransaction();
     }
 
     /**
@@ -67,8 +67,8 @@ class Transaction
      *</pre>
      * @return boolean
      */
-    public function rollback()
+    public function rollbackTransaction()
     {
-        return $this->db->rollback();
+        return $this->db->rollbackTransaction();
     }
 }

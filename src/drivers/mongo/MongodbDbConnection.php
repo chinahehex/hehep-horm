@@ -5,12 +5,13 @@ use horm\base\BaseConnection;
 use horm\base\BaseQueryBuilder;
 use horm\base\DbConnection;
 use horm\base\NosqlCommand;
+use horm\base\QueryCommand;
 use horm\pools\PoolDbConnection;
 use MongoDB\Driver\Manager;
 use Exception;
 
 /**
- * Mongodb扩展连接类
+ * Mongodb驱动连接类
  *<B>说明：</B>
  *<pre>
  *  略
@@ -26,12 +27,12 @@ class MongodbDbConnection extends BaseConnection
      *<pre>
      *  略
      *</pre>
-     * @var BaseQueryBuilder
+     * @var MongoQueryBuilder
      */
     private $builder;
 
     /**
-     * 当前连接PDO实例
+     * 当前mongo连接实例
      *<B>说明：</B>
      *<pre>
      *  略
@@ -41,7 +42,7 @@ class MongodbDbConnection extends BaseConnection
     protected $conn = null;
 
     /**
-     * 事务session
+     * mongo事务session
      *<B>说明：</B>
      *<pre>
      *  略
@@ -56,9 +57,9 @@ class MongodbDbConnection extends BaseConnection
      *<pre>
      *  略
      *</pre>
-     * @return BaseQueryBuilder
+     * @return MongoQueryBuilder
      */
-    public function getQueryBuilder()
+    public function getQueryBuilder():MongoQueryBuilder
     {
         if ($this->builder === null) {
             $this->builder = $this->createQueryBuilder();
@@ -80,6 +81,10 @@ class MongodbDbConnection extends BaseConnection
         return new MongoQueryBuilder($this);
     }
 
+    /**
+     * 返回mongo连接字符串
+     * @return string
+     */
     protected function parseDsn():string
     {
         $dsn = 'mongodb://'.($this->config['username']?"{$this->config['username']}":'').($this->config['password']?":{$this->config['password']}@":'').
@@ -112,60 +117,68 @@ class MongodbDbConnection extends BaseConnection
     }
 
     /**
-     * 连接数据库
+     * 获取连接
      *<B>说明：</B>
      *<pre>
      *  略
      *</pre>
      */
-    protected function initConnect()
+    public function getConn():Manager
     {
         if (is_null($this->conn)) {
             $this->conn = $this->connect();
         }
+
+        return $this->conn;
     }
 
-    protected function formatCommandMethodParams(NosqlCommand $command)
+    /**
+     * 生成命令对应方法的参数
+     * @param NosqlCommand $queryCommand
+     * @return array
+     */
+    protected function buildQueryCommandMethodParams(NosqlCommand $queryCommand):array
     {
-        $method = $command->getMethod();
-        $command_options = $command->getOptions();
-        $command_options['command'] = $command;
+        $method = $queryCommand->getMethod();
+        $command_options = $queryCommand->getOptions();
+        $command_options['queryCommand'] = $queryCommand;
 
         return $this->getMethodParams(static::class,$method,$command_options);
     }
 
-
-    protected function cursorToArray($cursor)
+    /**
+     * 游标转数组
+     * @param mixed $cursor
+     * @return array
+     */
+    protected function cursorToArray($cursor):array
     {
         $datas = [];
         foreach ($cursor as $document) {
-            $document = json_decode(json_encode($document),true);
-            $datas[] = $document;
+            $datas[] = (array)$document;
         }
 
         return $datas;
     }
 
     /**
-     * 执行查询 返回数据行
+     * 执行查询,返回数据行
      *<B>说明：</B>
      *<pre>
      * 略
      *</pre>
-     * @param NosqlCommand $command  sql命令对象
+     * @param NosqlCommand $queryCommand  命令对象
      * @return array
      */
-    public function callQuery($command)
+    public function callQuery(QueryCommand $queryCommand)
     {
 
-        $this->initConnect();
-
         $result = false;
-        $method = $command->getMethod();
+        $method = $queryCommand->getMethod();
         if ($method != '' && method_exists($this,$method)) {
-            $result = call_user_func_array([$this,$method],$this->formatCommandMethodParams($command));
+            $result = call_user_func_array([$this,$method],$this->buildQueryCommandMethodParams($queryCommand));
         } else {
-            $result = $this->queryCmd($command);
+            $result = $this->queryCmd($queryCommand);
         }
 
         return $result;
@@ -177,27 +190,25 @@ class MongodbDbConnection extends BaseConnection
      *<pre>
      * 略
      *</pre>
-     * @param NosqlCommand $command sql 命令对象
-     * @return array
+     * @param NosqlCommand $queryCommand s命令对象
+     * @return int
      */
-    public function callExecute($command)
+    public function callExecute(QueryCommand $queryCommand)
     {
-        $this->initConnect();
-
         $result = false;
-        $method = $command->getMethod();
+        $method = $queryCommand->getMethod();
         if ($method != '' && method_exists($this,$method)) {
-            $result = call_user_func_array([$this,$method],$this->formatCommandMethodParams($command));
+            $result = call_user_func_array([$this,$method],$this->buildQueryCommandMethodParams($queryCommand));
         } else {
-            $result = $this->execCmd($command);
+            $result = $this->execCmd($queryCommand);
         }
 
         return $result;
     }
 
-    protected function buildNamespace($namespace)
+    protected function getCollection($namespace)
     {
-        return $this->config['database'].'.' . $namespace;
+        return $this->config['database'] . '.' . $namespace;
     }
 
     /**
@@ -209,15 +220,15 @@ class MongodbDbConnection extends BaseConnection
      * @param string $table
      * @param array $data
      * @param array $options
-     * @param NosqlCommand $command
+     * @param NosqlCommand $queryCommand
      * @return int
      */
-    public function insert(string $table,array $data,array $options = [],$command = [])
+    public function insert(string $table,array $data,array $options = [],NosqlCommand $queryCommand = null)
     {
         $bulk = new \MongoDB\Driver\BulkWrite();
         $bulk->insert($data);
-        $insertOneResult = $this->conn->executeBulkWrite(
-            $this->buildNamespace($table),
+        $insertOneResult = $this->getConn()->executeBulkWrite(
+            $this->getCollection($table),
             $bulk,
             $this->buildExecOptions($options)
         );
@@ -225,15 +236,15 @@ class MongodbDbConnection extends BaseConnection
         return $insertOneResult->getInsertedCount();
     }
 
-    public function insertAll(string $table,array $data,array $options = [],$command = [])
+    public function insertAll(string $table,array $data,array $options = [],NosqlCommand $queryCommand = null)
     {
         $bulk = new \MongoDB\Driver\BulkWrite();
         foreach ($data as $row) {
             $bulk->insert($row);
         }
 
-        $insertOneResult = $this->conn->executeBulkWrite(
-            $this->buildNamespace($table),
+        $insertOneResult = $this->getConn()->executeBulkWrite(
+            $this->getCollection($table),
             $bulk,
             $this->buildExecOptions($options)
         );
@@ -250,13 +261,12 @@ class MongodbDbConnection extends BaseConnection
      * @param NosqlCommand $command
      * @return int
      */
-    public function update(string $table,array $data,array $filter = [] ,array $opts = [],$command = [])
+    public function update(string $table,array $data,array $filter = [] ,array $opts = [],NosqlCommand $queryCommand = null)
     {
-
         $bulk = new \MongoDB\Driver\BulkWrite();
         $bulk->update($filter,$data,$opts);
-        $updateResult = $this->conn->executeBulkWrite(
-            $this->buildNamespace($table),
+        $updateResult = $this->getConn()->executeBulkWrite(
+            $this->getCollection($table),
             $bulk,
             $this->buildExecOptions()
         );
@@ -273,12 +283,12 @@ class MongodbDbConnection extends BaseConnection
      * @param NosqlCommand $command
      * @return int
      */
-    public function delete(string $table ,array $filter = [],array $opts = [], $command = [])
+    public function delete(string $table ,array $filter = [],array $opts = [], NosqlCommand $queryCommand = null)
     {
         $bulk = new \MongoDB\Driver\BulkWrite();
         $bulk->delete($filter,$opts);
-        $deleteResult = $this->conn->executeBulkWrite(
-            $this->buildNamespace($table),
+        $deleteResult = $this->getConn()->executeBulkWrite(
+            $this->getCollection($table),
             $bulk,
             $this->buildExecOptions()
         );
@@ -288,22 +298,43 @@ class MongodbDbConnection extends BaseConnection
 
 
     /**
-     * 查询记录
+     * 获取一条数据
+     * @param string $table
+     * @param array $condition
+     * @param array $options
+     * @return int
+     * @throws Exception
+     */
+    public function fetchOne(string $table,array $filter,array $opts = [],NosqlCommand $queryCommand = null)
+    {
+        $mongoQuery = new \MongoDB\Driver\Query($filter, $opts);
+        $cursor = $this->getConn()->executeQuery($this->getCollection($table), $mongoQuery);
+        $queryResult = $this->cursorToArray($cursor);
+
+        if (empty($queryResult)) {
+            return [];
+        }
+
+        return $queryResult[0];
+    }
+
+
+    /**
+     * 查询多条记录
      *<B>说明：</B>
      *<pre>
      *  略
      *</pre>
-     * @param NosqlCommand $command
+     * @param NosqlCommand $queryCommand
      * @return array
      */
-    public function find(string $table,array $filter,array $opts = [],$command = [])
+    public function fetchAll(string $table,array $filter,array $opts = [],NosqlCommand $queryCommand = null)
     {
+        $mongoQuery = new \MongoDB\Driver\Query($filter, $opts);
+        $cursor = $this->getConn()->executeQuery($this->getCollection($table), $mongoQuery);
+        $queryResult = $this->cursorToArray($cursor);
 
-        $query = new \MongoDB\Driver\Query($filter, $opts);
-        $cursor = $this->conn->executeQuery($this->buildNamespace($table), $query);
-        $datas = $this->cursorToArray($cursor);
-
-        return $datas;
+        return $queryResult;
     }
 
     /**
@@ -315,16 +346,15 @@ class MongodbDbConnection extends BaseConnection
      * @param NosqlCommand $command
      * @return array
      */
-    public function scalar(string $table,array $pipelines = [],$command = [])
+    public function scalar(string $table,array $pipelines = [],NosqlCommand $queryCommand = null)
     {
-
-        $command = new \MongoDB\Driver\Command([
+        $mongoCommand = new \MongoDB\Driver\Command([
             'aggregate' => $table,
             'pipeline' => $pipelines,
             'cursor' => (object)[]
         ]);
 
-        $cursor = $this->conn->executeCommand($this->config['database'], $command);
+        $cursor = $this->getConn()->executeCommand($this->config['database'], $mongoCommand);
 
         return $this->cursorToArray($cursor);
     }
@@ -338,16 +368,15 @@ class MongodbDbConnection extends BaseConnection
      * @param NosqlCommand $command
      * @return array
      */
-    public function aggregate(string $table,array $pipelines = [],$command = [])
+    public function aggregate(string $table,array $pipelines = [],NosqlCommand $queryCommand = null)
     {
-
         $mongoCommand = new \MongoDB\Driver\Command([
             'aggregate' => $table,
             'pipeline' => $pipelines,
             'cursor' => (object)[]
         ]);
 
-        $cursor = $this->conn->executeCommand($this->config['database'], $mongoCommand);
+        $cursor = $this->getConn()->executeCommand($this->config['database'], $mongoCommand);
         $datas = $this->cursorToArray($cursor);
 
         return $datas;
@@ -362,10 +391,10 @@ class MongodbDbConnection extends BaseConnection
      * @param NosqlCommand $command
      * @return array
      */
-    public function execCmd($command)
+    public function execCmd(NosqlCommand $queryCommand)
     {
-        $mongoCommand = new \MongoDB\Driver\Command($command->getCommand());
-        $cursor = $this->conn->executeCommand($this->config['database'], $mongoCommand);
+        $mongoCommand = new \MongoDB\Driver\Command($queryCommand->getCommand());
+        $cursor = $this->getConn()->executeCommand($this->config['database'], $mongoCommand);
         $result = $this->cursorToArray($cursor);
 
         if (isset($result) && isset($result[0]['n'])) {
@@ -384,10 +413,10 @@ class MongodbDbConnection extends BaseConnection
      * @param NosqlCommand $command
      * @return array
      */
-    public function queryCmd($command)
+    public function queryCmd(NosqlCommand $queryCommand)
     {
-        $command = new \MongoDB\Driver\Command($command->getCommand());
-        $cursor = $this->conn->executeCommand($this->config['database'], $command);
+        $mongoCommand = new \MongoDB\Driver\Command($queryCommand->getCommand());
+        $cursor = $this->getConn()->executeCommand($this->config['database'], $mongoCommand);
         $result = $this->cursorToArray($cursor);
 
         return $result;
@@ -396,14 +425,13 @@ class MongodbDbConnection extends BaseConnection
 
     public function beginTransaction()
     {
-        $this->initConnect();
-        $this->tranSession = $this->conn->startSession();
+        $this->tranSession = $this->getConn()->startSession();
         $this->tranSession->startTransaction();
 
         return true;
     }
 
-    public function commit()
+    public function commitTransaction()
     {
         if (!is_null($this->tranSession)) {
             $this->tranSession->commitTransaction();
@@ -414,7 +442,7 @@ class MongodbDbConnection extends BaseConnection
         return true;
     }
 
-    public function rollback()
+    public function rollbackTransaction()
     {
         if (!is_null($this->tranSession)) {
             $this->tranSession->abortTransaction();

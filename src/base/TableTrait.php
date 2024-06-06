@@ -2,7 +2,7 @@
 namespace  horm\base;
 
 /**
- * 数据库访问　DB 实体
+ * 基础表
  *<B>说明：</B>
  *<pre>
  * 不支持分库分表,如需支持,继承ShardDbEntity,ShardDbTableEntity,ShardTableEntity

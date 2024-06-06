@@ -2,6 +2,7 @@
 namespace horm\shard\base;
 
 use horm\base\BaseTable;
+use horm\QueryTable;
 
 /**
  * 实体模型类
@@ -45,9 +46,9 @@ abstract class ShardRule
      *<pre>
      *  略
      *</pre>
-     * @param BaseTable $table
+     * @param QueryTable $table
      * @param array $value
      */
-    abstract public function getSequence(BaseTable $table,$value);
+    abstract public function getShardId(QueryTable $table,$value);
 
 }

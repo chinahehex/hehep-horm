@@ -1,5 +1,5 @@
 <?php
-namespace horm\tests\units\pgsql;
+namespace horm\tests\units\mongo;
 
 use horm\tests\common\mongo\AdminUserinfoShardDbNosqlEntity;
 use horm\tests\TestCase;

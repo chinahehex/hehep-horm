@@ -1,7 +1,7 @@
 <?php
 namespace horm\shard\rule;
 
-use horm\base\BaseTable;
+use horm\QueryTable;
 use horm\shard\base\ShardRule;
 
 /**
@@ -25,8 +25,7 @@ class ModShardRule extends ShardRule
         }
     }
 
-
-    public function getSequence(BaseTable $table = null, $value)
+    public function getShardId(QueryTable $table = null, $value)
     {
         return $value %  $this->mod;
 

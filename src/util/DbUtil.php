@@ -134,7 +134,6 @@ class DbUtil
      * @param array|hehe\libs\Forms $datas
      * @param array|\horm\QueryTable $query_where 其他where 条件
      * @param array $rules ['列名称','col'=>'db 字段名','empty'=>'判空方式,empty:php empty 判空,int:0 表示空,str:""表示空,null:php is_null','op'=>'操作符号, in,=,like']
-
      * @return array
      */
     public static function toQueryWhere($datas = [],$query_where = [],$rules = [])

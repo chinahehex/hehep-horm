@@ -15,7 +15,7 @@ git clone git@github.com:chinahehex/hehep-horm.git
 ```
 - 命令安装：
 ```
-composer require hehep/horm
+composer require hehex/hehep-horm
 ```
 
 ## 基础配置
@@ -25,13 +25,16 @@ $conf = [
     // 默认db key
     'dbkey'=>'hehe',
     
+    // 线程安全类定义
+    'saleLocal'=>'horm\base\SaleLocal',
+    
     // db列表
     'dblist'=>[
         'hehe' => ['driver' => 'mysql','host' => 'localhost','database'=>'hehe','username' => 'root',
             'password' => '123123','port' => '3306','charset' => 'utf8','prefix' => 'web_',
             'reconnect'=>false,// 连接断线是否重连
             'options'=>[],// 其他参数
-            'onMassla'=>true,// 启动读写分离,从库分离
+            'onSlave'=>true,// 启动读写分离,从库分离
             'slaveHandler'=>[],// 读取从库处理事件函数,
             'slaves'=>['hh0','hh1']// 从库列表
         ],
@@ -342,22 +345,18 @@ $userEntitys = AdminUserEntity::setWhere(['id'=>[8,9]])->asArray()->fetchAll();
 
 ```
 
-
-
-
-
 ## 常规查询操作
 
 - or,'and' 多条件查询
 ```php
 $where = ['status'=>1,'tel'=>'13511113333'];
-$userEntitys = AdminUserEntity::setWhere($where)->fetchAll();
+AdminUserEntity::setWhere($where)->fetchAll();
 
 $where = ['and','status'=>1,'tel'=>'13511113333'];
-$userEntitys = AdminUserEntity::setWhere($where)->fetchAll();
+AdminUserEntity::setWhere($where)->fetchAll();
 
 $where = ['or','status'=>1,'tel'=>"13564768841"];
-        $userEntitys = AdminUserEntity::setWhere($where)->fetchAll();
+AdminUserEntity::setWhere($where)->fetchAll();
 
 ```
 
@@ -379,7 +378,6 @@ $userEntitys = AdminUserEntity::setWhere(['id'=>9])->setWhere(['tel'=>'135111133
 
 - 排序查询
 ```php
-
 // id 降序
 $userEntitys = AdminUserEntity::setWhere(['status'=>1])
 ->setOrder(['id'=>SORT_DESC])->fetchAll();
@@ -397,7 +395,6 @@ $userEntitys = AdminUserEntity::setWhere(['status'=>1])
 - 三元表达式查询
 ```php
 $userEntitys = AdminUserEntity::setWhere('id',[8,9],'in')->fetchAll();
-
 $userEntitys = AdminUserEntity::setWhere('id',9,'=')->fetchAll();
 
 ```
@@ -451,7 +448,7 @@ $result = AdminUserEntity::queryCmd("select * from web_admin_users where id in(1
 $result = AdminUserEntity::execCmd("update web_admin_users set status=1 where id=2");
 
 $hdbsession = new Dbsession();
-$hdbsession->addDbconf('hehe1',[]);
+$hdbsession->addDb('hehe1',[]);
 
 $hdbsession->query('hehe1')->queryCmd("select * from web_admin_users limit 2");
 $hdbsession->query('hehe1')->queryCmd("select * from web_admin_users limit 2");
@@ -481,11 +478,8 @@ class AdminUserEntity extends \horm\Entity
 - 调用预定义功能集合
 ```php
 $users = AdminUserEntity::setWhere(['id'=>[1,2,3,4]])->setScope('effective')->fetchAll();
-
 $users = AdminUserEntity::setWhere(['id'=>[1,2,3,4]])->setScope('effective,admin')->fetchAll();
-
 $users = AdminUserEntity::setWhere(['id'=>[1,2,3,4]])->effective()->fetchAll();
-
 $users = AdminUserEntity::effective()->setWhere(['id'=>[1,2,3,4]])->fetchAll();
 
 // 预定义功能方法传参
@@ -505,6 +499,18 @@ $users = AdminUserEntity::setWhere(['id'=>[1,2,3,4]])->effective(3)->fetchAll();
  $users_query = AdminUserEntity::setField('id')->setWhere(['id'=>[1,2,3,4],'status'=>1])->asQuery()->fetchAll();
  $users = AdminUserEntity::setWhere(['id'=>['in',$users_query]])->fetchAll();
 ```
+
+### asId 方法
+- asId 说明
+```
+返回自增id，用于单条插入数据
+```
+- asId 示例
+```php
+$data = ['username'=>'admin','password'=>'123123','tel'=>'13511113333'];
+$id = AdminUserEntity::setData($data)->asId()->addOne();
+```
+
 ### setLimit,setOffset
 - 说明
 ```
@@ -546,7 +552,11 @@ asQuery  | 返回Query对象
 asId  | 返回自增id
 setTable  | 设置表名
 setJoin  | 设置连表
+setLeftJoin  | 设置Left连表
+setInnerJoin  | 设置Inner连表
 setWith  | 设置关系
+setLeftWith  | 设置Left关系
+setInnerWith  | 设置Inner关系
 setOrder  | 设置查询排序
 setParam  | 设置参数
 setField  | 设置查询读取字段
@@ -565,7 +575,7 @@ setOrHaving  | 设置分组查询or条件
 eq  | =,等于 | $where = ['id'=>['eq',9]]
 neq  | !=,不等于 | $where = ['id'=>['neq',9]]
 gt  | >,大于 | $where = ['id'=>['gt',9]]
-gt  | >,大于等于 | $where = ['id'=>['egt',9]]
+egt  | >=,大于等于 | $where = ['id'=>['egt',9]]
 lt  | <,小于 | $where = ['id'=>['lt',9]]
 elt  | <=,小于等于 | $where = ['id'=>['elt',9]]
 like  | like 模糊查询 | $where = ['tel'=>['like','%135%']]
@@ -573,7 +583,7 @@ notlike  | not like 模糊查询 | $where = ['tel'=>['notlike','%135%']]
 in  | in 查询 | $where = ['id'=>['in',[8,9]]]
 notin  | not in 查询 | $where = ['id'=>['notin',[8,9]]]
 exp  | 原始字符串 | $where = ['id'=>['exp','=9']] sql:`id`  =9
-raw  | 原始字符串 | ['u.UserName'=>['raw','t.UserName']](u.UserName = t.UserName), ['id'=>['raw','9']](`id` = 9);
+raw  | 原始字符串(用于连表) | ['u.UserName'=>['raw','t.UserName']](u.UserName = t.UserName), ['id'=>['raw','9']](`id` = 9);
 inc  | 字段递增 | $data = ['id'=>['inc',1]] sql:`id` = `id` + 1
 dec  | 字段递减 | $data = ['id'=>['dec',1]] sql:`id` = `id` - 1
 
@@ -604,7 +614,6 @@ $users = AdminUserEntity::setWhere(['#.id'=>[1,2]])->setAlias('user')->setField(
 $users = AdminUserEntity::setWhere(['#.id'=>[1,2]])->setAlias('user')->setField('#.*')
     ->setJoin("{{%admin_user_role}} as role",['role.id'=>['raw','#.roleId']])->fetchAll();
 
-
 ```
 - 实体定义
 ```php
@@ -621,7 +630,7 @@ class AdminUserEntity extends Entity
 }
 ```
 
-## 连表(join)关联查询
+## 连表关联查询(join)
 - join 说明
 ```
 连表的表名格式:"{{%表名}}" 或 "[[表名]]",百分号%表示表前缀
@@ -656,7 +665,7 @@ $userEntitys = AdminUserEntity::setAlias("u")->setWhere($where)->setJoin($join,$
 ```
 
 
-## with 关联查询
+## with关联查询
 - with 说明
 ```
 1.定义主表与关联表的关系
@@ -697,7 +706,7 @@ $adminUserEntity = AdminUserEntity::setWhere(['username'=>"admin"])->setWith('ro
 
 ```
 
-## 分组(setGroup)查询
+## 分组查询(group)
 - 分组说明
 ```
 分组条件(having) 与where 规则一致
@@ -721,9 +730,7 @@ $users = AdminUserEntity::setField('tel')->setWhere(['id'=>[1,2,3,4]])->setGroup
 
 ```
 
-
-
-## 聚合查询
+## 聚合查询(scalar)
 ```php
 // 统计行数
 $count = AdminUserEntity::count();
@@ -741,13 +748,19 @@ $sum = AdminUserEntity::querySum('id');
 
 ```
 
-
-## 联合查询
+## 联合查询(Union)
 ```php
 
+//返回3条数据
+$query = AdminUserEntity::asQuery()->fetchAll(['id'=>[1,2]]);
+$adminUserEntitys = AdminUserEntity::asArray()->setUnion($query)->fetchAll(['id'=>3]);
+
+// 两个查询集合后,可以设置排序规则,以及读取的条数
+$query = AdminUserEntity::asQuery()->fetchAll(['id'=>[1,2]]);
+$adminUserEntitys = AdminUserEntity::asArray()->setUnion($query)->setLimit(2)->setOrder(['id'=>'desc'])->fetchAll(['id'=>3]);
 ```
 
-## 事务操作
+## 事务操作(transaction)
 - 数据实体操作事务
 ```php
 // 开启事务
@@ -980,7 +993,6 @@ UserEntity::setShard(['userId'=>3])->deleteOne(['userId'=>1]);
 ```
 
 - 定义实体
-
 ```php
 class UserEntity extends Entity
 {
@@ -1094,7 +1106,7 @@ $users = $db_conn->querySql('select * from web_admin_users where id in (1,2)');
 $number = $db_conn->execSql('update web_admin_users set tel="135xxxxbbbb" where id = 2');
 $number = $db_conn->execSql('update web_admin_users set tel=:tel where id = 2',['tel'=>'135xxxx' .  rand(10000,99999)]);
 ```
-## 表(queryTable)操作模式
+## 数据表(queryTable)操作模式
 ```php
 // 设置默认db key 
 $this->hdbsession->setDb('hehe1');

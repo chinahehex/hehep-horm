@@ -28,8 +28,8 @@ class ShardTableTest extends TestCase
     {
 
         $number = AdmminUserinfoShardTbEntity::addOne(['userId'=>1,'tel'=>'135xxxxxxxx','realName'=>'hehex','sex'=>'男','education'=>'高中']);
-        $table_name = 'web_admin_users_info_' . AdmminUserinfoShardTbEntity::tbShardRule()->getSequence(null,1);
-        $this->assertTrue($number == 1 && strpos(AdmminUserinfoShardTbEntity::getLastSql(),$table_name) !== false);
+        $table_name = 'web_admin_users_info_' . AdmminUserinfoShardTbEntity::tbShardRule()->getShardId(null,1);
+        $this->assertTrue($number == 1 && strpos(AdmminUserinfoShardTbEntity::getLastCmd(),$table_name) !== false);
 
         // 批量添加
         $datas = [
@@ -50,8 +50,8 @@ class ShardTableTest extends TestCase
 
         $number = AdmminUserinfoShardTbEntity::updateOne(['tel'=>'135xxxx' .  rand(10000,99999)],['id'=>$user_info_id,'userId'=>$userId]);
 
-        $table_name = 'web_admin_users_info_' . AdmminUserinfoShardTbEntity::tbShardRule()->getSequence(null,$userId);
-        $this->assertTrue($number == 1 && strpos(AdmminUserinfoShardTbEntity::getLastSql(),$table_name) !== false);
+        $table_name = 'web_admin_users_info_' . AdmminUserinfoShardTbEntity::tbShardRule()->getShardId(null,$userId);
+        $this->assertTrue($number == 1 && strpos(AdmminUserinfoShardTbEntity::getLastCmd(),$table_name) !== false);
 
     }
 
@@ -64,8 +64,8 @@ class ShardTableTest extends TestCase
 
         $delete_number = AdmminUserinfoShardTbEntity::setWhere(['id'=>$user_info_id,'userId'=>$userId])->deleteOne();
 
-        $table_name = 'web_admin_users_info_' . AdmminUserinfoShardTbEntity::tbShardRule()->getSequence(null,$userId);
-        $this->assertTrue($delete_number == 1 && strpos(AdmminUserinfoShardTbEntity::getLastSql(),$table_name) !== false);
+        $table_name = 'web_admin_users_info_' . AdmminUserinfoShardTbEntity::tbShardRule()->getShardId(null,$userId);
+        $this->assertTrue($delete_number == 1 && strpos(AdmminUserinfoShardTbEntity::getLastCmd(),$table_name) !== false);
 
     }
 

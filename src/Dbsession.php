@@ -29,6 +29,8 @@ use horm\pools\ConnectionPool;
  * @method QueryTable setTable($table = '')
  * @method QueryTable setAlias($alias = '')
  * @method QueryTable setJoin($table, $on, $joinType = '')
+ * @method QueryTable setLeftJoin($table, $on)
+ * @method QueryTable setInnerJoin($table, $on)
  * @method QueryTable setWith($with,$join = false,$load = true)
  * @method QueryTable setLeftWith($with,$load = true)
  * @method QueryTable setInnerWith($with,$load = true)
@@ -38,12 +40,11 @@ use horm\pools\ConnectionPool;
  * @method QueryTable setOffset($offset = null)
  * @method QueryTable setParam($params = null)
  * @method QueryTable asArray($asArray = true)
+ * @method QueryTable asQuery($asQuery = true)
  * @method QueryTable asMaster($asMaster = true)
- * @method QueryTable asId()
+ * @method QueryTable asId($asId = true)
  * @method QueryTable queryCmd($queryCommand, $params = [])
  * @method QueryTable execCmd($queryCommand, $params = [])
- * @method QueryTable querySql($querySql, $params = [])
- * @method QueryTable execSql($execcSql, $params = [])
  * @method QueryTable addParams($params = [])
  * @method QueryTable count($field = null,$where = [])
  * @method QueryTable queryMax($field = null, $where = [])
@@ -106,7 +107,8 @@ class Dbsession
 	 */
 	public $messages = [
 		'db_non_existent'=>'{dbkey}数据库配置不存在',
-		'db_class_undefined'=>"未定义DB驱动类:{dbclass}"
+		'db_class_undefined'=>"未定义DB驱动类:{dbclass}",
+		'query_where_empty'=>'删除操作情况下，删除条件不能为空,必须设置',
 	];
 
 	/**
@@ -295,7 +297,7 @@ class Dbsession
 	 */
 	public function commitTransaction():bool
 	{
-        $result = $this->getTransactionGroup()->commit();
+        $result = $this->getTransactionGroup()->commitTransaction();
         // 清空事务db
         $this->clearTransaction();
 
@@ -312,7 +314,7 @@ class Dbsession
 	 */
 	public function rollbackTransaction():bool
 	{
-        $result = $this->getTransactionGroup()->rollback();
+        $result = $this->getTransactionGroup()->rollbackTransaction();
 		// 清空事务db
 		$this->clearTransaction();
 
@@ -330,7 +332,6 @@ class Dbsession
 	protected function clearTransaction():void
 	{
 		$this->transStatus = null;
-
 		$this->transactionGroup = null;
 	}
 
@@ -357,91 +358,12 @@ class Dbsession
 	 *<pre>
 	 *  略
 	 *</pre>
-	 * @param QueryCommand $command
+	 * @param QueryCommand $queryCommand
 	 * @return void
 	 */
-	public function addQueryCommand(QueryCommand $command)
+	public function addQueryCommand(QueryCommand $queryCommand)
 	{
-		$this->lastcommand = $this->replaceSqlValue($command->buildCommand(),$command->getParams());
-	}
-
-	/**
-	 * 构建sql
-	 *<B>说明：</B>
-	 *<pre>
-	 *  略
-	 *</pre>
-	 * @param Query $query
-	 * @return string
-	 */
-	public function buildSql(Query $query):string
-	{
-        $command = $query->buildQueryCommand();
-
-		return $this->replaceSqlValue($command->buildCommand(),$command->getParams());
-	}
-
-	/**
-	 * 构建sql
-	 *<B>说明：</B>
-	 *<pre>
-	 *  略
-	 *</pre>
-	 * @param QueryCommand $command
-	 * @return string
-	 */
-	public function buildSqlByCommand(QueryCommand $command):string
-	{
-		return $this->replaceSqlValue($command->buildCommand(),$command->getParams());
-	}
-
-	/**
-	 * 替换sql 参数
-	 *<B>说明：</B>
-	 *<pre>
-	 *  	1、替换sql 语句中预处理标识
-	 *</pre>
-	 * @param string $query sql 指令
-	 * @param array $params 绑定参数
-	 * @return string sql 语句
-	 */
-	protected  function replaceSqlValue(string $query = '', array $params = []):string
-	{
-		$keys = array();
-		$values = array();
-
-		# build a regular expression for each parameter
-		foreach ($params as $key=>$value)
-		{
-			if (is_string($key)) {
-				if (0 !== strpos($key,':')) {
-					$keys[] = '/:'.$key.'/';
-				} else {
-					$keys[] = '/'.$key.'/';
-				}
-
-			} else {
-				$keys[] = '/[?]/';
-			}
-
-			if (is_numeric($value)) {
-				$values[] = intval($value);
-			} else if (is_array($value)) {
-				if ($value[1] == \PDO::PARAM_INT) {
-					$values[] = $value[0] ;
-				} else if ($value[1] == \PDO::PARAM_STR) {
-					$values[] = '"'.$value[0] .'"';
-				} else {
-					$values[] = '"'.$value[0] .'"';
-				}
-			} else {
-				$values[] = '"'.$value .'"';
-			}
-		}
-
-		$sql2 = preg_replace($keys, $values, $query, 1, $count);
-
-		return $query . "\n" . $sql2;
+		$this->lastcommand = $queryCommand->toRawCommand();
 	}
 
     /**
@@ -460,7 +382,7 @@ class Dbsession
     		return null;
 		}
 
-        return $this->dbconn->getLastInsertID($sequence);
+        return $this->dbconn->getLastId($sequence);
     }
 
 	/**
@@ -469,28 +391,15 @@ class Dbsession
 	 *<pre>
 	 *  略
 	 *</pre>
-	 * @return string sql 语句
+	 * @return string 命令语句
 	 */
-	public function getLastCommand()
-	{
-		return $this->lastcommand;
-	}
-
-	/**
-	 * 获取最后一条sql
-	 *<B>说明：</B>
-	 *<pre>
-	 *  略
-	 *</pre>
-	 * @return string sql 语句
-	 */
-	public function getLastSql()
+	public function getLastCmd()
 	{
 		return $this->lastcommand;
 	}
 
     /**
-     * 创建数据库连接类实例
+     * 创建数据库连接实例
      *<B>说明：</B>
      *<pre>
      * 略

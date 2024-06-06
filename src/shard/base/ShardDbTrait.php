@@ -42,7 +42,6 @@ trait ShardDbTrait
         $affected = 0;
         $addResult = true;//更新状态
 		$queryList = $this->dataShardByDb($query);
-
 		foreach ($queryList as $cmdQuery) {
             $cmdQuery->asWrite(true);
 			$cmdQuery->setBuildParams([$cmdQuery]);

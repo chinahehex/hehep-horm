@@ -70,6 +70,9 @@ class TestCase extends \PHPUnit\Framework\TestCase
             } else if ($driver == 'mongo') {
                 $dns =  "mongodb://" . static::$db_config['mongo_user'] . ":" . static::$db_config['mongo_pwd'] ."@localhost:27017";
                 $pdo = new \MongoDB\Driver\Manager($dns);
+            } else if ($driver == 'sqlsrv') {
+                $dns = "sqlsrv:Database=" . $db_name .";Server=" . static::$db_config['sqlsrv_host'];
+                $pdo = new \PDO($dns, static::$db_config['sqlsrv_user'], static::$db_config['sqlsrv_pwd']);
             } else {
                 $dns = static::$db_driver . ":host=localhost;charset=utf8";
                 if (!empty($db_name)) {
@@ -153,6 +156,13 @@ class TestCase extends \PHPUnit\Framework\TestCase
                 $pdo = static::getPdo($dbconfig['driver'],'postgres');
                 $reuslt = $pdo->exec("DROP DATABASE IF EXISTS $db_name");
                 unset($pdo);
+            } else if (isset($dbconfig['driver']) && $dbconfig['driver'] == 'sqlsrv') {
+                $pdo = static::getPdo($dbconfig['driver'],$db_name);
+                $stmt = $pdo->query("SELECT name AS table_name FROM sys.tables");
+                while ($row = $stmt->fetch(\PDO::FETCH_NUM)) {
+                    $pdo->exec('DROP TABLE ' . $row[0]);
+                }
+
             } else if (isset($dbconfig['driver']) && $dbconfig['driver'] == 'mongo') {
                 $pdo = static::getPdo($dbconfig['driver'],'mongo');
                 $mongoCommand = new \MongoDB\Driver\Command(['dropDatabase'=>1]);
@@ -198,6 +208,11 @@ class TestCase extends \PHPUnit\Framework\TestCase
                 //$result = $pdo->exec($createDbSql);
 //                var_dump($pdo->errorInfo());
 //                var_dump($createDbSql);
+                unset($pdo);
+            } else if (isset($dbconfig['driver']) && $dbconfig['driver'] == 'sqlsrv') {
+                $pdo = static::getPdo($dbconfig['driver'],static::$db_config['sqlsrv_dbname']);
+                $createDbSql = "CREATE DATABASE {$db_name}";
+                $result = $pdo->exec($createDbSql);
                 unset($pdo);
             } else if (isset($dbconfig['driver']) && $dbconfig['driver'] == 'mongo') {
                 $createDbSql = "use {$db_name}";
@@ -265,6 +280,8 @@ class TestCase extends \PHPUnit\Framework\TestCase
             static::execPgsqlSql($db_name,$sql_file,$shard);
         } else if (isset($dbconfig['driver']) && $dbconfig['driver'] == 'oci') {
             static::execOciSql($db_name,$sql_file,$shard);
+        } else if (isset($dbconfig['driver']) && $dbconfig['driver'] == 'sqlsrv') {
+            static::execSqlsrvSql($db_name,$sql_file,$shard);
         } else if (isset($dbconfig['driver']) && $dbconfig['driver'] == 'mongo') {
             static::execMongoSql($db_name,$sql_file,$shard);
         } else {
@@ -333,6 +350,32 @@ class TestCase extends \PHPUnit\Framework\TestCase
         }
 
         $pdo = static::getPdo('pgsql',$db_name);
+        // 加载数据
+        $sqlContent = file_get_contents(__DIR__ . '/res/' . $sql_file);
+        // 用分号分割SQL语句
+        $sqlStatements = explode(';', $sqlContent);
+        foreach ($sqlStatements as $sql) {
+            if ($shard != '') {
+                $sql = str_replace('{{:shard}}',$shard,$sql);
+
+            }
+
+            $sql = str_replace('--#',';',$sql);
+            // 跳过空语句
+            if (trim($sql) !== '') {
+                // 使用PDO执行SQL语句
+                $result = $pdo->exec($sql);
+            }
+        }
+    }
+
+    protected static function execSqlsrvSql($db_name,$sql_file = '',$shard = '')
+    {
+        if (empty($sql_file)) {
+            return ;
+        }
+
+        $pdo = static::getPdo('sqlsrv',$db_name);
         // 加载数据
         $sqlContent = file_get_contents(__DIR__ . '/res/' . $sql_file);
         // 用分号分割SQL语句

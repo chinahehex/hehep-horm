@@ -1,5 +1,5 @@
 <?php
-namespace horm\tests\units\pgsql;
+namespace horm\tests\units\mongo;
 
 use horm\tests\common\mongo\AdminUserinfoShardDbTbNosqlEntity;
 use horm\tests\TestCase;
@@ -30,7 +30,7 @@ class MongodbShardDbTbTest extends TestCase
     {
 
         $number = AdminUserinfoShardDbTbNosqlEntity::addOne(['userId'=>1,'tel'=>'135xxxxxxxx','realName'=>'hehex','sex'=>'男','education'=>'高中']);
-        $db_name = 'hehe_' . AdminUserinfoShardDbTbNosqlEntity::dbShardRule()->getSequence(null,1);
+        $db_name = 'hehe_' . AdminUserinfoShardDbTbNosqlEntity::dbShardRule()->getShardId(null,1);
         $this->assertTrue($number == 1);
 
         // 批量添加

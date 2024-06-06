@@ -23,7 +23,7 @@ class OciDbConnection extends DbConnection
      *<pre>
      *  略
      *</pre>
-     * @var BaseQueryBuilder
+     * @var OciQueryBuilder
      */
     private $builder = null;
 
@@ -33,9 +33,9 @@ class OciDbConnection extends DbConnection
      *<pre>
      *  略
      *</pre>
-     * @return BaseQueryBuilder
+     * @return OciQueryBuilder
      */
-    public function getQueryBuilder()
+    public function getQueryBuilder():OciQueryBuilder
     {
         if ($this->builder === null) {
             $this->builder = $this->createQueryBuilder();
@@ -85,7 +85,7 @@ class OciDbConnection extends DbConnection
      *</pre>
      * @return string|int
      */
-    public function getLastInsertID($sequence = '')
+    public function getLastId($sequence = '')
     {
         if(!empty($sequence)) {
             $cmd = new QueryCommand(['command'=>'select "'.$sequence.'".currval as "id" from dual']);

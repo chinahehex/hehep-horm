@@ -1,7 +1,6 @@
 <?php
 namespace  horm\base;
 
-use common\entitys\AdminUserRoleEntity;
 use horm\base\BaseQueryBuilder;
 use horm\base\DbConnection;
 use Exception;
@@ -35,14 +34,14 @@ abstract class BaseTable
      *      'with'=>[],// with设置
      *      'lock'=>false,// 是否加锁(锁表或锁行)
      *      'order'=>'',// 查询排序设置
-     *      'limit'=>[],// 读取行数，或读取范围
+     *      'limit'=>0,// 读取条数
+     *      'offset'=>1,// 起始行数
      *      'distinct'=>false,// 是否取消重复行
-     *      'file'=>'',// 通过文件导入数据至数据库设置
      *      'group'=>'',// 分组
      *      'having'=>[],// 分组条件
      *      'params'=>[],// 绑定参数
      *      'shard'=>[],// 分库分表规则
-     *      'seq'=>'',// 序号
+     *      'sequence'=>'',// 自增序列
      *      'dbkey'=>'',//数据库连接键名
      *      'isMaster'=>false,// 是否强制从主库读取
      *      'formats'=>[],
@@ -150,12 +149,10 @@ abstract class BaseTable
     {
         if (isset($this->options['pk'])) {
             return $this->options['pk'];
+        } else {
+            return '';
         }
-
-        return '';
     }
-
-
 
     /**
      * 获取db管理器
@@ -170,9 +167,11 @@ abstract class BaseTable
         return $this->dbsession;
     }
 
-    public function setDbsession(Dbsession $dbsession):void
+    public function setDbsession(Dbsession $dbsession):self
     {
         $this->dbsession = $dbsession;
+
+        return $this;
     }
 
 
@@ -184,7 +183,6 @@ abstract class BaseTable
      *</pre>
      * @param string $dbkey 数据库连接键名
      * @return DbConnection
-     * @throws Exception
      */
     public function getDb(string $dbkey = ''):?BaseConnection
     {
@@ -224,18 +222,19 @@ abstract class BaseTable
     {
         $this->options['entity'] = $entity;
         $this->entity = $entity;
+        $this->asArray(false);
 
         return $this;
     }
 
     /**
-     * 设置类
+     * 设置预定义功能名称
      *<B>说明：</B>
      *<pre>
      *  略
      *</pre>
-     * @param string|array $scope
-     * @param mixed ...$args
+     * @param string|array $scope 预定义方法名称
+     * @param mixed ...$args 预定义方法参数
      * @return static
      */
     public function setScope($scope,...$args):self
@@ -277,7 +276,7 @@ abstract class BaseTable
      *<pre>
      *  示例1：添加单行记录
      *  $data = array('name'=>'admin','pwd'=>'123456');
-     *  $this->setData($data)->addRows();
+     *  $this->setData($data)->addRow();
      *  示例2：批量添加多行记录
      *    $data = array(
      *    array('name'=>'admin','pwd'=>'123456'),
@@ -299,7 +298,7 @@ abstract class BaseTable
      * 设置表名
      *<B>说明：</B>
      *<pre>
-     *  设置的表名不带表前缀
+     *  略
      *</pre>
      *<B>示例：</B>
      *<pre>
@@ -315,7 +314,7 @@ abstract class BaseTable
      *  $where = array('name'=>'admin');
      *  $this->setTable(['User','u'])->setWhere($where)->queryRows();
      *</pre>
-     * @param string $table 表名
+     * @param string|array $table 表名
      * @return static
      */
     public function setTable($table = ''):self
@@ -341,13 +340,12 @@ abstract class BaseTable
         return isset($this->options['table']) ? $this->options['table'] : '';
     }
 
-
     /**
      * 设置读取字段列
      *<B>说明：</B>
      *<pre>
      * 1、一般用查询时，设置读取的字段列
-     * 2、如果参数$fields 为空，则读取所有字段列
+     * 2、如指定的读取列为空，则读取所有字段列
      *</pre>
      *<B>示例：</B>
      *<pre>
@@ -363,15 +361,17 @@ abstract class BaseTable
      *    $this->setTable('User')->setField(['id'=>'_id','username'=>'name','password'=>'pwd'])->setWhere($where)->queryRows();
      *
      *    示例4：查询数据-定义字段方法，别名, id 最小值
-     *    $this->setTable('User')->setField(['id'=>['alias'=>'_id','method'=>'min']])->setWhere($where)->queryRows();
+     *    $this->setTable('User')->setField(['id'=>['as'=>['_id','min']]])->setWhere($where)->queryRows();
+     *    $this->setTable('User')->setField(['count(id) as total'])->setWhere($where)->queryRows();
      *</pre>
      * @param array|string $fields 字段名
      *<pre>
      *        $fields = 'name,user,pass',// 字符串格式
-     *        $fields = array('name','user','pass'),索引数组
-     *        $fields = array('name','user'=>'username','pass'=>'password') //别名格式
-     *        $fields = array('pass'=>['as','别名']) //别名格式
-     *        $fields = array('pass'=>['as',['别名','方法min,max,avg 等等']]) //别名格式
+     *        $fields = ['name','user','pass'],索引数组
+     *        $fields = ['name','user'=>'username','pass'=>'password'] //别名格式
+     *        $fields = ['count(id) as total'] //别名格式
+     *        $fields = ['pass'=>['as','别名']] //别名格式
+     *        $fields = ['pass'=>['as',['别名','方法min,max,avg 等等']]] //别名格式
      *</pre>
      * @return static
      */
@@ -381,9 +381,14 @@ abstract class BaseTable
             $fields = explode(',',$fields);
         }
 
-        $this->options['field'] = empty($fields) ? '*' : $fields;
+        $this->options['field'] = empty($fields) ? '#.*' : $fields;
 
         return $this;
+    }
+
+    public function getField()
+    {
+        return isset($this->options['field']) ? $this->options['field'] : '';
     }
 
     /**
@@ -418,14 +423,13 @@ abstract class BaseTable
      *<B>说明：</B>
      *<pre>
      *    1、设置查询条件、更新条件
-     *    2、sql条件 支持三种格式:字符串方式，hash（哈希）方式,混合 字符串+hash，对应hash,混合方式的条件，数组的每一个元素 都可以是嵌套的hash,或混合条件
-     *            字符串:'userid=2'
-     *          基本格式['字段'] = ['操作符','数值'];
-     *            hash:即关联数组,['username'=>'admin','userid'=>['in','1,2,3']]
-     *            混合:['userid'=>['in','1,2,3'],'userid=2']
+     *    2、sql条件 支持三种格式:字符串方式，关联数组格式,混合格式(字符串+关联数组)
+     *      子符串格式:'userid=2',['userid=2']
+     *      关联数组格式:['字段'] = ['操作符','数值'],如['username'=>'admin','userid'=>['in','1,2,3']]
+     *      混合格式:['userid'=>['in','1,2,3'],'userid=2']
      *    3、支持多次调用
      *    4、where 条件不支持全数字作为字段名
-     *    5、where 条件的解析使用了递归方式
+     *    5、where 条件支持递归方式
      *</pre>
      *<B>示例：</B>
      *<pre>
@@ -434,12 +438,12 @@ abstract class BaseTable
      *    $this->setTable->('user')->setWhere($where)->queryRows();
      *        生成sql:select * from user where id=1 and username="admin";
      *
-     *    示例2：hash条件
+     *    示例2：关联数组格式
      *    $where = ['name'=>'admin'];
      *    $this->setTable->('user')->setWhere($where)->queryRows();
      *        生成sql:select * from user where name="admin";
      *
-     *    示例3：混合条件
+     *    示例3：混合格式
      *    $where = ['name'=>['eq','admin'],'userId=1'];
      *    $this->setTable->('user')->setWhere($where)->queryRows();
      *        生成sql:select * from user where name="admin" and userId=1;
@@ -450,36 +454,35 @@ abstract class BaseTable
      *        生成sql:select * from user where name="admin" and userId=1;
      *
      *    示例5：or 查询条件
-     *        $where = ['or','name'=>['eq','admin'],'userid'=>1];
-     *        $this->setTable->('user')->setWhere($where)->queryRows();
-     *        生成sql:select * from user where name="admin" or userId=1;
-     *
-     *        示例6：嵌套条件
-     *        $where = ['and','name'=>['eq','admin'],['or',['roleid'=>1,'ctime'=>['eq',time()]]]];
-     *        $this->setTable('user')->setWhere($where)->queryRows();
-     *        生成sql:select * from user where name="admin" and (roleid=1 or ctime=1524141411);
-     *
-     *        示例6：多次调用setWhere
-     *        $where = ['name'=>['eq','admin']];
-     *        $this->setTable('user');
-     *        $this->setWhere($where);
-     *        $where1 = ['userId'=>2];
-     *        $this->setWhere($where1);
-     *        生成sql:select * from user where name="admin" and userId=2;
-     *
-     *        示例7：操作符条件,操作符格式 $map['字段1']  = array('表达式','查询条件1');
-     *              支持以下操作符:['eq'=>'=','neq'=>'<>','gt'=>'>','egt'=>'>=','lt'=>'<','elt'=>'<=','notlike'=>'NOT LIKE','like'=>'LIKE','in'=>'IN','notin'=>'NOT IN'];
-     *        $where = ['name'=>['eq','admin']];
-     *        $where = ['name'=>['gt','admin']];
-     *
-     *        示例9 in 查询
-     *        $where = ['userId'=>['in',[1,2,3,4]]];
-     *         or
-     *        $where = ['userId'=>[1,1,2,3,4]];
-     *
-     *        示例10  array('表达式','字段名称','字段值');
-     *  　　　 $where[] = ['=','userId',2];
-     *
+    *        $where = ['or','name'=>['eq','admin'],'userid'=>1];
+    *        $this->setTable->('user')->setWhere($where)->queryRows();
+    *        生成sql:select * from user where name="admin" or userId=1;
+    *
+    *        示例6：嵌套条件
+    *        $where = ['and','name'=>['eq','admin'],['or',['roleid'=>1,'ctime'=>['eq',time()]]]];
+    *        $this->setTable('user')->setWhere($where)->queryRows();
+    *        生成sql:select * from user where name="admin" and (roleid=1 or ctime=1524141411);
+    *
+    *        示例6：多次调用setWhere
+    *        $where = ['name'=>['eq','admin']];
+    *        $this->setTable('user');
+    *        $this->setWhere($where);
+    *        $where1 = ['userId'=>2];
+    *        $this->setWhere($where1);
+    *        生成sql:select * from user where name="admin" and userId=2;
+    *
+    *        示例7：操作符条件,操作符格式 $map['字段1']  = array('表达式','查询条件1');
+    *              支持以下操作符:['eq'=>'=','neq'=>'<>','gt'=>'>','egt'=>'>=','lt'=>'<','elt'=>'<=','notlike'=>'NOT LIKE','like'=>'LIKE','in'=>'IN','notin'=>'NOT IN'];
+    *        $where = ['name'=>['eq','admin']];
+    *        $where = ['name'=>['gt','admin']];
+    *
+    *        示例9 in 查询
+    *        $where = ['userId'=>['in',[1,2,3,4]]];
+    *        或
+    *        $where = ['userId'=>[1,1,2,3,4]];
+    *
+    *        示例10 三元表达式 array('表达式','字段名称','字段值');
+    *  　　　 $where[] = ['=','userId',2];
      *</pre>
      * @param array|string $where 条件参数
      * @param array $params 绑定参数
@@ -547,7 +550,7 @@ abstract class BaseTable
      * @param array $params 绑定参数
      * @return static
      */
-    public function setAndWhere($where = [], $params = []):self
+    public function setAndWhere($where = [], array $params = []):self
     {
         if (isset($this->options['where']) && !empty($this->options['where'])) {
             $this->options['where'] = ['and', $this->options['where'], $where];
@@ -579,7 +582,7 @@ abstract class BaseTable
      * @param array $params 绑定参数
      * @return static
      */
-    public function setOrWhere($where = [], $params = []):self
+    public function setOrWhere($where = [], array $params = []):self
     {
         if (isset($this->options['where']) && !empty($this->options['where'])) {
             $this->options['where'] = ['or', $this->options['where'], $where];
@@ -601,7 +604,7 @@ abstract class BaseTable
      * @param boolean $lock 是否开启锁
      * @return static
      */
-    public function setLock($lock = true):self
+    public function setLock(bool $lock = true):self
     {
         $this->options['lock'] = $lock;
 
@@ -635,7 +638,7 @@ abstract class BaseTable
      */
     public function setSeq($sequence = true):self
     {
-        $this->options['seq'] = $sequence;
+        $this->options['sequence'] = $sequence;
 
         return $this;
     }
@@ -644,7 +647,8 @@ abstract class BaseTable
      * 设置连表参数
      *<B>说明：</B>
      *<pre>
-     *  连表操作的表可以不写表前缀，如果$join 参数为字符串，支持多次调用
+     *  连表操作的表可以不写表前缀，如果$join 参数为字符串，
+     *  支持多次调用
      *</pre>
      *<B>示例：</B>
      *<pre>
@@ -652,8 +656,9 @@ abstract class BaseTable
      *  $where = ['name'=>array('eq','admin')];
      *  $leftTable = ['role','R'];
      *  $leftTableOn = ['u.RoleId'=>['raw','R.RoleId']];
-     *
+     *  $joinType = 'left join';
      *  $this->setTable->(['table','u'])->setJoin($leftTable,$leftTableOn)->setWhere($where)->queryRows();
+     *  $this->setTable->(['table','u'])->setJoin($leftTable,$leftTableOn,$joinType)->setWhere($where)->queryRows();
      *  示例2：多次调用setJoin
      *  $this->setJoin($left2)->setJoin($left2)->queryRows();
      *  $this->queryRows();
@@ -671,6 +676,21 @@ abstract class BaseTable
         return $this;
     }
 
+    public function setLeftJoin($table, $on):self
+    {
+        $this->options['join'][] = [$table, $on, 'left join'];
+
+        return $this;
+    }
+
+    public function setInnerJoin($table, $on):self
+    {
+        $this->options['join'][] = [$table, $on, 'inner join'];
+
+        return $this;
+    }
+
+
     /**
      * 设置with查询
      *<B>说明：</B>
@@ -682,7 +702,7 @@ abstract class BaseTable
      * @param bool $load 是否加载关系表数据
      * @return static
      */
-    public function setWith($with,$join = false,$load = true):self
+    public function setWith($with,$join = false,bool $load = true):self
     {
         if (is_null($with)) {
             $this->options['with'] = [];
@@ -716,7 +736,7 @@ abstract class BaseTable
      * @param bool $load 是否加载关系表数据
      * @return static
      */
-    public function setLeftWith($with,$load = true):self
+    public function setLeftWith($with,bool $load = true):self
     {
         $this->setWith($with,'left join',$load);
 
@@ -733,7 +753,7 @@ abstract class BaseTable
      * @param bool $load 是否加载关系表数据
      * @return static
      */
-    public function setInnerWith($with,$load = true):self
+    public function setInnerWith($with,bool $load = true):self
     {
         $this->setWith($with,'inner join',$load);
 
@@ -755,7 +775,7 @@ abstract class BaseTable
      * @param  boolean $all
      * @return static
      */
-    public function setUnion($union, $all = false):self
+    public function setUnion($union, bool $all = false):self
     {
         if ($all === true) {
             $this->options['union']['_all'] = true;
@@ -770,23 +790,25 @@ abstract class BaseTable
      * 设置查询排序
      *<B>说明：</B>
      *<pre>
-     *    连贯操作
-     *        不支持字符串
+     * 支持字符串
+     * 不支持多次调用
      *</pre>
      *<B>示例：</B>
      *<pre>
      *  示例1：查询单个排序
+     *  $this->setTable->('table')->setOrder('ctime desc')->setWhere($where)->queryRows();
      *  $this->setTable->('table')->setOrder(['ctime'=>SORT_DESC])->setWhere($where)->queryRows();
      *
      *  示例2：查询多个排序
+     *  $this->setTable->('table')->setOrder('roleid desc,id asc')->setWhere($where)->queryRows();
      *  $this->setTable->('table')->setOrder(['roleid'=>SORT_DESC，'id'=>SORT_ASC])->setWhere($where)->queryRows();
      *</pre>
-     * @param array $order 排序参数
+     * @param array $orders 排序参数
      * @return static
      */
-    public function setOrder($order = []):self
+    public function setOrder($orders = []):self
     {
-        $this->options['order'] = $order;
+        $this->options['order'] = $orders;
 
         return $this;
     }
@@ -818,10 +840,10 @@ abstract class BaseTable
     }
 
     /**
-     * 设置读取数据行起始行数
+     * 设置读取数据的起始行数
      *<B>说明：</B>
      *<pre>
-     *  1、连贯操作
+     *  0 是第一条
      *</pre>
      *<B>示例：</B>
      *<pre>
@@ -842,7 +864,7 @@ abstract class BaseTable
      * 设置取消重复行
      *<B>说明：</B>
      *<pre>
-     *  连贯操作
+     *  略
      *</pre>
      *<B>示例：</B>
      *<pre>
@@ -852,7 +874,7 @@ abstract class BaseTable
      * @param boolean $distinct 是否取消重复行 true 表示取消,false 表示不取消
      * @return static
      */
-    public function setDistinct($distinct = true):self
+    public function setDistinct(bool $distinct = true):self
     {
         $this->options['distinct'] = $distinct;
 
@@ -876,9 +898,9 @@ abstract class BaseTable
      * @param array|string $group 分组参数
      * @return static
      */
-    public function setGroup($group = []):self
+    public function setGroup($groups = []):self
     {
-        $this->options['group'] = $group;
+        $this->options['group'] = $groups;
 
         return $this;
     }
@@ -999,7 +1021,7 @@ abstract class BaseTable
      *<B>示例：</B>
      *<pre>
      *    示例1：设置绑定参数
-     *  $where = ['name'=>['eq',':name']];
+     *    $where = ['name'=>['eq',':name']];
      *    $params = [':name'=>'admin'];
      *    $this->setWhere($where)->setParam($params)->queryRows();
      *</pre>
@@ -1132,10 +1154,10 @@ abstract class BaseTable
      *<pre>
      *  示例1：
      *  根据主键id查询一行记录
-     *  $e_user = $this->fetchOne(2);
+     *  $user = $this->fetchOne(2);
      *  根据数组条件查询一行记录
      *  $where = array('name'=>'admin');
-     *  $e_user = $this->fetchOne($where);
+     *  $user = $this->fetchOne($where);
      *
      *  示例2：
      *  如果表本身没有主键，请通过设置sql参数的方式调用此方法
@@ -1197,11 +1219,11 @@ abstract class BaseTable
      *<pre>
      *    示例1：普通查询
      *    $where = ['username'=>'admin'];
-     *    $this->setWhere($where)->getAll();
+     *    $this->setWhere($where)->fetchAll();
      *
      *    示例2：
      *    $where = ['username'=>['like','%admin%']];
-     *    $this->getAll($where);
+     *    $this->fetchAll($where);
      *</pre>
      * @param array|string $where 查询条件
      * @return null|array|boolean|Entity[] 二维数组
@@ -1230,10 +1252,6 @@ abstract class BaseTable
      *    $data = ['updteTime'=>time()];
      *    $where = ['userId'=>'230'];
      *    $this->updateOne($data,$where);
-     *
-     *    示例2：data 包含主键id,必须定义主键id属性
-     *    $data = ['updteTime'=>time(),'userId'=>'230'];
-     *    $this->updateOne($data);
      *</pre>
      * @param array $data 更新数据
      * @param int|array|string $where 更新条件
@@ -1272,8 +1290,8 @@ abstract class BaseTable
      * 更新多行记录
      *<B>说明：</B>
      *<pre>
-     *        1、根据主键id更新记录
-     *        2、根据数组条件更新单条记录
+     *    1、根据主键id更新记录
+     *    2、根据数组条件更新单条记录
      *    3、参数$data包含了主键id字段名,自动作为更新条件
      *</pre>
      *<B>示例：</B>
@@ -1281,11 +1299,7 @@ abstract class BaseTable
      *    示例1：普通更新
      *    $data = ['updteTime'=>time()];
      *    $where = ['userId'=>'230'];
-     *    $this->update($data,$where);
-     *
-     *    例2：data 包含主键id,必须定义主键id属性
-     *    $data = ['updteTime'=>time(),'userId'=>'230'];
-     *    $this->update($data);
+     *    $this->updateAll($data,$where);
      *</pre>
      * @param array $data 更新数据
      * @param int|array|string $where 更新条件
@@ -1342,7 +1356,7 @@ abstract class BaseTable
      *    boolean:false 添加失败，SQL错误
      *</pre>
      */
-    public function addOne($data = [])
+    public function addOne(array $data = [])
     {
         return $this->addRow($data);
     }
@@ -1370,7 +1384,7 @@ abstract class BaseTable
      *    boolean:false 添加失败，SQL错误
      *</pre>
      */
-    public function addAll($datas = [])
+    public function addAll(array $datas = [])
     {
         return $this->addRows($datas);
     }
@@ -1385,7 +1399,7 @@ abstract class BaseTable
      *<pre>
      *    示例1：统计行数
      *    $where = ['name'=>'admin'];
-     *    $this->count($where);
+     *    $this->count('id',$where);
      *
      *    示例2：统计行数
      *    $where = ['name'=>'admin'];
@@ -1401,11 +1415,7 @@ abstract class BaseTable
      */
     public function count($field = null,$where = [])
     {
-        if (!empty($where)) {
-            $this->setWhere($where);
-        }
-
-        return $this->queryCount($where, $field);
+        return $this->queryCount($field, $where);
     }
 
     /**
@@ -1537,7 +1547,7 @@ abstract class BaseTable
      *    string:sql 语句
      *</pre>
      */
-    public function queryRow($options = null)
+    protected function queryRow($options = null)
     {
         if (!is_null($options) && !is_array($options)) {
             $pk = $this->getPk();
@@ -1593,16 +1603,16 @@ abstract class BaseTable
      *  $e_list = $this->setTable('Users')->setWhere($where)->setOrder($order)->queryRows();
      *
      *  示例2：查询主键为1的记录
-     *  $e_list = $this->setTable('Users')->select(1);
+     *  $e_list = $this->setTable('Users')->queryRows(1);
      *
      *  示例3：查询主键为1,2,3,4记录
-     *  $e_list = $this->setTable('Users')->select('1,2,3,4');
+     *  $e_list = $this->setTable('Users')->queryRows('1,2,3,4');
      *
      *  示例4：查询用户名为"admin"的记录，按创建时间降序
      *  $options = array();
      *  $options['where'] = array('UserName'=>'admin');
      *  $options['order'] = array('ctime'=>'desc');
-     *  $e_list = $this->setTable('Users')->select($options);
+     *  $e_list = $this->setTable('Users')->queryRows($options);
      *</pre>
      * @param array|int|string|boolean $options sql参数
      *<pre>
@@ -1618,14 +1628,14 @@ abstract class BaseTable
      *        array:记录二维数组(key/value)
      *</pre>
      */
-    public function queryRows($options = null)
+    protected function queryRows($options = null)
     {
         if (!is_null($options) && !is_array($options)) {
             // 根据主键查询
             $pk = $this->getPk();
             $where = [];
             if ($pk) {
-                if (strpos($options, ',')) {
+                if (strpos($options, ',') !== false) {
                     $where[$pk] = [BaseQueryBuilder::EXP_IN, $options];
                 } else {
                     $where[$pk] = $options;
@@ -1649,7 +1659,6 @@ abstract class BaseTable
         }
 
         $queryResult = $query->getResult();
-
         $queryResult = $this->queryWith($query,$queryResult);
         // 释放对象
         unset($query);
@@ -1665,41 +1674,45 @@ abstract class BaseTable
      * 统计行数
      *<B>说明：</B>
      *<pre>
-     *  如果未填统计字段,默认为主键id,若主键id 字段也喂定义，则默认*
+     *  如果未填统计字段,默认为主键id,若主键id 字段也未定义，则默认*
      *</pre>
      *<B>示例：</B>
      *<pre>
      *  示例1：按条件统计
      *  $where = array('name'=>'admin');
-     *  $this->count($where);
+     *  $this->queryCount('*',$where);
      *</pre>
-     * @param array $options 统计条件
      * @param string $field 统计字段
+     * @param array $where 统计条件
      * @return int|boolean
      *<pre>
      *   int：统计数量　０表示找不到统计行
      *   boolean:false  sql 错误
      *</pre>
      */
-    public function queryCount($options = [], $field = null)
+    public function queryCount($field = null, $where = [])
     {
-
-        if (!is_null($field)) {
+        $options = [];
+        if (!empty($field)) {
             $options['field'] = $field;
         } else {
-            $pk = $this->getPk();
-            if ($pk) {
-                $options['field'] = $pk;
-            } else {
-                $options['field'] = '*';
+            if (empty($this->getField())) {
+                $pk = $this->getPk();
+                if ($pk) {
+                    $options['field'] = $pk;
+                } else {
+                    $options['field'] = '*';
+                }
             }
+        }
+
+        if (!empty($where)) {
+            $options['where'] = $where;
         }
 
         $query = $this->getQuery($options);
         $result = $this->queryScalar($query, 'count');
 
-        // 释放对象
-        unset($query);
         if ($result === false) {
             return null;
         }
@@ -1734,8 +1747,6 @@ abstract class BaseTable
 
         $query = $this->getQuery($options);
         $result = $this->queryScalar($query, 'max');
-        // 释放对象
-        unset($query);
         if ($result === false) {
             return null;
         }
@@ -1770,8 +1781,6 @@ abstract class BaseTable
 
         $query = $this->getQuery($options);
         $result = $this->queryScalar($query, 'min');
-        // 释放对象
-        unset($query);
         if ($result === false) {
             return null;
         }
@@ -1806,8 +1815,6 @@ abstract class BaseTable
 
         $query = $this->getQuery($options);
         $result = $this->queryScalar($query, 'sum');
-        // 释放对象
-        unset($query);
         if ($result === false) {
             return null;
         }
@@ -1842,7 +1849,6 @@ abstract class BaseTable
 
         $query = $this->getQuery($options);
         $result = $this->queryScalar($query, 'avg');
-        // 释放对象
         if ($result === false) {
             return null;
         }
@@ -1870,7 +1876,7 @@ abstract class BaseTable
      *        'name'=>'admin',
      *        'roleId'=>2,
      *  );
-     *  $this->setTable('Users')->setReplace()->addRow($data);
+     *  $this->setTable('Users')->addRow($data);
      *</pre>
      * @param  array $data 数据(一维数组)
      * @param  array $options sql参数
@@ -1880,7 +1886,7 @@ abstract class BaseTable
      *    int: 0 表示没插入任何记录,大于0 表示插入数据的行数
      *</pre>
      */
-    public function addRow($data = [], $options = [])
+    protected function addRow($data = [], $options = [])
     {
         if (!empty($data)) {
             $this->setData($data);
@@ -1895,7 +1901,6 @@ abstract class BaseTable
         }
 
         $result = $query->getResult();
-
         if ($query->asId()) {
             $result = $this->getLastId($query->getSeq);
         }
@@ -1929,7 +1934,7 @@ abstract class BaseTable
      *    'name'=>'admin',
      *    'roleId'=>2,
      *  );
-     *  $this->setTable('Users')->setReplace()->addRows($data);
+     *  $this->setTable('Users')->addRows($data);
      *</pre>
      * @param  array $datas 数据(二维数组)
      * @return int|boolean|Query
@@ -1938,7 +1943,7 @@ abstract class BaseTable
      *    int: 0 表示没插入任何记录,大于0 表示插入数据的行数
      *</pre>
      */
-    public function addRows($datas = [])
+    protected function addRows($datas = [])
     {
         if (!empty($datas)) {
             $this->setData($datas);
@@ -1985,7 +1990,7 @@ abstract class BaseTable
      * null:参数错误，比如data　未定义,为设置更新条件(视乎有点不妥)
      * </pre>
      */
-    public function updateRows($data = [], $options = [])
+    protected function updateRows($data = [], $options = [])
     {
         if (!empty($data)) {
             $this->setData($data);
@@ -2039,7 +2044,7 @@ abstract class BaseTable
      *    null:参数错误,比如where 条件未设置
      *</pre>
      */
-    public function deleteRows($where = [])
+    protected function deleteRows($where = [])
     {
         $options = [];
         if (!empty($where)) {
@@ -2048,8 +2053,8 @@ abstract class BaseTable
 
         // 分析表达式
         $query = $this->getQuery($options);
-        if ($query->isEmptyWhere()) {
-            return 0;
+        if (empty($query->getWhere())) {
+            throw new \Exception($this->getDbsession()->formatMessage('query_where_empty'));
         }
 
         $query->setBuildMethod(Query::BUILD_DELETE);
@@ -2072,7 +2077,7 @@ abstract class BaseTable
      * @param  string $method 方法名 比如min,max,count
      * @return array|boolean|Query
      */
-    public function queryScalar($query, $method = '')
+    protected function queryScalar($query, $method = '')
     {
         $query->setBuildMethod(Query::BUILD_SCALAR);
         $query = $this->queryScalarInternal($query, $method);
@@ -2099,13 +2104,13 @@ abstract class BaseTable
      *<B>示例：</B>
      *<pre>
      *  示例1：sql 查询
-     *  $list = $this->query('select * from {{Users}} where pid=356');
+     *  $list = $this->queryCmd('select * from {{Users}} where pid=356');
      *
      *  示例2：sql 预处理查询
      *  $params = array(':pid'=>358);
-     *  $list = $this->query('select * from {{Users}} where pid=:pid',[':pid'=>20]);
+     *  $list = $this->queryCmd('select * from {{Users}} where pid=:pid',[':pid'=>20]);
      *</pre>
-     * @param  string $queryCommand sql指令
+     * @param  string $rawCommand sql指令
      * @param  array $params 绑定参数
      * @return array|boolean 数据行(二维数组)
      *<pre>
@@ -2113,30 +2118,15 @@ abstract class BaseTable
      *  boolean:false sql 错误
      *</pre>
      */
-    public function queryCmd($queryCommand, array $params = [])
+    public function queryCmd($rawCommand, array $params = [])
     {
         $query = $this->getQuery();
-        $query->setRawCommand($queryCommand, $params);
+        $query->setRawCommand($rawCommand, $params);
         $query->asWrite(false);
-        $rawCommand = $query->buildQueryCommand();
+        $queryCommand = $query->buildQueryCommand();
         // 记录sql
-        $this->getDbsession()->addQueryCommand($rawCommand);
-        $result = $query->getDb()->callQuery($rawCommand);
-        // 释放对象
-        unset($query);
-
-        return $result;
-    }
-
-    public function querySql($queryQql, array $params = [])
-    {
-        $query = $this->getQuery();
-        $query->setRawCommand($queryQql, $params);
-        $query->asWrite(false);
-        $rawCommand = $query->buildQueryCommand();
-        // 记录sql
-        $this->getDbsession()->addQueryCommand($rawCommand);
-        $result = $query->getDb()->callQuery($rawCommand);
+        $this->getDbsession()->addQueryCommand($queryCommand);
+        $result = $query->getDb()->callQuery($queryCommand);
         // 释放对象
         unset($query);
 
@@ -2154,12 +2144,12 @@ abstract class BaseTable
      *<B>示例：</B>
      *<pre>
      *  示例1：删除UserId=315 记录
-     *  $result = $this->executeCmd('delete from {{Users}} where UserId=:UserId',array(':UserId'=>315));
+     *  $result = $this->execCmd('delete from {{Users}} where UserId=:UserId',array(':UserId'=>315));
      *
      *  示例2：修改UserId=315 的邮件地址
-     *  $result = $this->executeCmd('update {{Users}} set Email="admin163.com" where UserId=:UserId',array(':UserId'=>316));
+     *  $result = $this->execCmd('update {{Users}} set Email="admin163.com" where UserId=:UserId',array(':UserId'=>316));
      *</pre>
-     * @param  string $queryCommand sql语句
+     * @param  string $rawCommand sql语句
      * @param  array $params 绑定参数
      * @return int|boolean
      *<pre>
@@ -2167,62 +2157,21 @@ abstract class BaseTable
      *    boolean:false sql 错误
      *</pre>
      */
-    public function execCmd($queryCommand, array $params = array())
+    public function execCmd($rawCommand, array $params = [])
     {
         $query = $this->getQuery();
-        $query->setRawCommand($queryCommand, $params);
+        $query->setRawCommand($rawCommand, $params);
         $query->asWrite(true);
-        $rawCommand = $query->buildQueryCommand();
+        $queryCommand = $query->buildQueryCommand();
         // 记录sql
-        $this->getDbsession()->addQueryCommand($rawCommand);
+        $this->getDbsession()->addQueryCommand($queryCommand);
 
-        $result = $query->getDb()->callExecute($rawCommand);
+        $result = $query->getDb()->callExecute($queryCommand);
         // 释放对象
         unset($query);
 
         return $result;
     }
-
-    /**
-     * 执行更新sql
-     *<B>说明：</B>
-     *<pre>
-     *  执行操作
-     *  支持预处理
-     *  一般用于，更新，添加，删除的sql 操作
-     *</pre>
-     *<B>示例：</B>
-     *<pre>
-     *  示例1：删除UserId=315 记录
-     *  $result = $this->executeCmd('delete from {{Users}} where UserId=:UserId',array(':UserId'=>315));
-     *
-     *  示例2：修改UserId=315 的邮件地址
-     *  $result = $this->executeCmd('update {{Users}} set Email="admin163.com" where UserId=:UserId',array(':UserId'=>316));
-     *</pre>
-     * @param  string $queryCommand sql语句
-     * @param  array $params 绑定参数
-     * @return int|boolean
-     *<pre>
-     *    int:影响的行数
-     *    boolean:false sql 错误
-     *</pre>
-     */
-    public function execSql($execSql, array $params = array())
-    {
-        $query = $this->getQuery();
-        $query->setRawCommand($execSql, $params);
-        $query->asWrite(true);
-        $rawCommand = $query->buildQueryCommand();
-        // 记录sql
-        $this->getDbsession()->addQueryCommand($rawCommand);
-
-        $result = $query->getDb()->callExecute($rawCommand);
-        // 释放对象
-        unset($query);
-
-        return $result;
-    }
-
 
     /**
      * 添加数据行总接口
@@ -2231,8 +2180,8 @@ abstract class BaseTable
      *  可以重写，以便实现分表，分库，等功能
      *</pre>
      * @param Query $query 数据
-     * @param  string $queryType 操作方法
-     * @return Query
+     * @param string $queryType 操作方法
+     * @return Query|int|bool
      *<pre>
      *    int:10,添加成功行数
      *    boolean:false sql 错误
@@ -2248,7 +2197,7 @@ abstract class BaseTable
      *</pre>
      * @param Query $query
      * @param string $queryType 操作方法
-     * @return Query
+     * @return Query|int|bool
      *<pre>
      *        int:10,更新成功行数
      *        boolean:false sql 错误
@@ -2264,7 +2213,7 @@ abstract class BaseTable
      *</pre>
      * @param Query $query
      * @param string $queryType 操作方法
-     * @return Query
+     * @return Query|int|bool
      *<pre>
      *  int:10,删除成功行数
      *  boolean:false sql 错误
@@ -2280,8 +2229,8 @@ abstract class BaseTable
      *  可以重写，以便实现分表，分库，等功能
      *</pre>
      * @param Query $query
-     * @param  string $queryType 操作方法
-     * @return Query
+     * @param string $queryType 操作方法
+     * @return Query|array|Entity[]|bool
      *<pre>
      *  array:1数据行(二维数组)
      *  boolean:false sql 错误
@@ -2297,7 +2246,7 @@ abstract class BaseTable
      *</pre>
      * @param Query $query
      * @param  string $method 操作方法 count,min,max,avg
-     * @return Query
+     * @return Query|bool|int
      *<pre>
      *    array:数据行(二维数组)
      *    boolean:false sql 错误
@@ -2327,6 +2276,7 @@ abstract class BaseTable
             throw $e;
         } finally {
             if (!$this->getDbsession()->hasBeginTransaction()) {
+                // 释放连接回连接池
                 $dbconn->free();
             }
         }
@@ -2361,6 +2311,7 @@ abstract class BaseTable
             throw $e;
         } finally {
             if (!$this->getDbsession()->hasBeginTransaction()) {
+                // 释放连接回连接池
                 $dbconn->free();
             }
         }
@@ -2423,40 +2374,17 @@ abstract class BaseTable
     }
 
     /**
-     * 获取最后执行sql
+     * 获取最后执行命令
      *<B>说明：</B>
      *<pre>
      * 略
      *</pre>
-     * @return string sql 语句
+     * @return string 命令语句
      */
-    public function getLastCommand()
+    public function getLastCmd()
     {
         return $this->getDbsession()->getLastCommand();
     }
-
-    /**
-     * 生成查询SQL
-     *<B>说明：</B>
-     *<pre>
-     *  主要用于子查询
-     *</pre>
-     *<B>示例：</B>
-     *<pre>
-     *  示例：
-     *  $where = array('name'=>'admin');
-     *  $sql = $this->setTable('User')->setWhere($where)->buildSql();
-     *</pre>
-     * @param Query $query 命令对象
-     * @return string
-     */
-    public function buildSql(Query $query)
-    {
-        $command = $query->buildQueryCommand();
-
-        return $this->getDbsession()->buildSqlByCommand($command);
-    }
-
 
     /**
      * 解析sql 参数
@@ -2468,7 +2396,7 @@ abstract class BaseTable
      * @param array $options sql 参数
      * @return Query
      */
-    protected function getQuery($options = [])
+    protected function getQuery($options = []):Query
     {
         if (is_array($options)) {
             $opts = array_merge($this->options, $options);
@@ -2535,7 +2463,7 @@ abstract class BaseTable
             }
 
             if (is_bool($join)) {
-                $joinType = 'left JOIN';
+                $joinType = 'LEFT JOIN';
             } else {
                 $joinType = $join;
             }
@@ -2581,7 +2509,7 @@ abstract class BaseTable
      *</pre>
      * @param Query $query
      * @param array|Entity[] $result
-     * @return Query
+     * @return mixed
      */
     protected function queryWith(Query $query,$result)
     {

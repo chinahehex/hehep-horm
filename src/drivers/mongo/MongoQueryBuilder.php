@@ -20,7 +20,7 @@ class MongoQueryBuilder extends NosqlQueryBuilder
      * @param string $column_name
      * @return string
      */
-    public function parseColumnName(Query $query,$column_name  = '')
+    public function parseColumnName(Query $query,string $column_name  = '')
     {
         if (substr($column_name,0,2) == '#.') {
             return str_replace('#.','',$column_name);
@@ -39,5 +39,4 @@ class MongoQueryBuilder extends NosqlQueryBuilder
             }
         }
     }
-
 }

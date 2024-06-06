@@ -3,6 +3,7 @@ namespace horm\builders;
 
 use horm\base\NosqlCommand;
 use horm\base\Query;
+use horm\base\QueryCommand;
 use horm\base\RawComparison;
 use horm\base\RawExpression;
 use horm\base\BaseQueryBuilder;
@@ -27,10 +28,10 @@ class NosqlQueryBuilder extends BaseQueryBuilder
      * @param Query $query 命令对象
      * @return NosqlCommand
      */
-    public function buildRawCommand(Query $query)
+    public function buildRawCommand(Query $query):QueryCommand
     {
         // 过滤原始sql,比如表名前缀
-        $rawCommand = $query->getRawSql();
+        $rawCommand = $query->getRawCmd();
 
         return new NosqlCommand(['command'=>$rawCommand]);
     }
@@ -46,10 +47,10 @@ class NosqlQueryBuilder extends BaseQueryBuilder
      * @param Query $query sql 参数
      * @return NosqlCommand
      */
-    protected function createCommand($rawCommand = [],$query = null)
+    protected function createCommand($rawCommand = [],$query = null):QueryCommand
     {
         $params = $query->getParams();
-        $params = $this->parseParams($params);
+        $params = $this->getBuildParams($params);
 
         return new NosqlCommand(['command'=>$rawCommand,'params'=>$params]);
     }
@@ -66,17 +67,14 @@ class NosqlQueryBuilder extends BaseQueryBuilder
         'eq'=>'$eq',
         '='=>'$eq',
         'neq'=>'$ne',// 不等于
-
         'gt'=>'$gt',// 大于
         '>'=>'$gt',// 大于
         'egt'=>'$gte',// 大于等于
         '>='=>'$gte',// 大于等于
-
         'lt'=>'$lt',// 小于
         '<'=>'$lt',// 小于
         'elt'=>'$lte',// 小于等于
         '<='=>'$lte',// 小于等于
-
         'in'=>'$in',// in 属于集合id
         'notin'=>'$nin',
         'like'=>'$regex',
@@ -359,7 +357,7 @@ class NosqlQueryBuilder extends BaseQueryBuilder
         ];
 
         $command = [
-            'method'=>'find',
+            'method'=>'fetchAll',
             'options'=>$opts
         ];
 

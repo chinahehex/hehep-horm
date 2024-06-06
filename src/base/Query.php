@@ -244,7 +244,7 @@ class Query
      *</pre>
      * @var array|string
      */
-	protected $rawSql;
+	protected $rawCmd;
 
 	/**
 	 * 分区列值
@@ -264,7 +264,7 @@ class Query
 	 *</pre>
 	 * @var string
 	 */
-	protected $seq = '';
+	protected $sequence = '';
 
 	/**
 	 * 联合查询
@@ -656,7 +656,7 @@ class Query
 
 	public function getSeq()
 	{
-		return $this->seq;
+		return $this->sequence;
 	}
 
 	public function asId()
@@ -744,13 +744,13 @@ class Query
 
 
 	/**
-	 * 设置构建sql 方法
+	 * 设置构建类方法
 	 *<B>说明：</B>
 	 *<pre>
 	 * 略
 	 *</pre>
-	 * @param string $method build 方法名
-	 * @param array $params　build 方法参数
+	 * @param string $method 构建类对应的方法名
+	 * @param array $params　构建类方法参数
 	 * @return $this
 	 */
 	public function setBuild($method,$params)
@@ -762,7 +762,7 @@ class Query
 	}
 
 	/**
-	 * 获取构建sql 方法
+	 * 获取构建类参数
 	 *<B>说明：</B>
 	 *<pre>
 	 * 略
@@ -775,12 +775,12 @@ class Query
 	}
 
 	/**
-	 * 设置构建sql 方法
+	 * 设置构建类方法
 	 *<B>说明：</B>
 	 *<pre>
 	 * 略
 	 *</pre>
-	 * @param string $method build 方法名
+	 * @param string $method 构建类对应的方法名
 	 */
 	public function setBuildMethod($method)
 	{
@@ -795,12 +795,12 @@ class Query
     }
 
 	/**
-	 * 设置构建sql 方法参数
+	 * 设置构建类方法参数
 	 *<B>说明：</B>
 	 *<pre>
 	 * 略
 	 *</pre>
-	 * @param array $params　build 方法参数
+	 * @param array $params　QueryBuilder方法参数
 	 */
 	public function setBuildParams($params)
 	{
@@ -809,39 +809,21 @@ class Query
 		return $this;
 	}
 
-
-    /**
-     * 获取原始sql
-     *<B>说明：</B>
-     *<pre>
-     * 略
-     *</pre>
-     * @return string
-     */
-	public function getRawSql()
-    {
-        return $this->rawSql;
-    }
-
 	/**
-	 * 判断where　是否为空
+	 * 获取原始sql
 	 *<B>说明：</B>
 	 *<pre>
 	 * 略
 	 *</pre>
-	 * @return boolean true 表示where 为空
+	 * @return string
 	 */
-	public function isEmptyWhere()
+	public function getRawCmd()
 	{
-		if (empty($this->where) === true) {
-			return true;
-		} else {
-			return false;
-		}
+		return $this->rawCmd;
 	}
 
 	/**
-	 * 是否生成Query
+	 * 设置是否返回Query
 	 *<B>说明：</B>
 	 *<pre>
 	 * 不执行
@@ -856,10 +838,10 @@ class Query
 	}
 
 	/**
-	 * 是否生成Query状态
+	 * 返回是否返回Query状态
 	 *<B>说明：</B>
 	 *<pre>
-	 * 不执行
+	 * 略
 	 *</pre>
 	 * @return boolean
 	 */
@@ -868,6 +850,14 @@ class Query
 		return $this->isQuery;
 	}
 
+	/**
+	 * 设置是否返回数组
+	 *<B>说明：</B>
+	 *<pre>
+	 * 略
+	 *</pre>
+	 * @return boolean
+	 */
 	public function asArray($isArray = true):self
     {
         $this->isArray = $isArray;
@@ -875,11 +865,27 @@ class Query
 		return $this;
     }
 
+	/**
+	 * 返回是否返回数组状态
+	 *<B>说明：</B>
+	 *<pre>
+	 * 略
+	 *</pre>
+	 * @return boolean
+	 */
 	public function asArrayStatus():bool
 	{
 		return $this->isArray;
 	}
 
+	/**
+	 * 设置是否强制操作主库
+	 *<B>说明：</B>
+	 *<pre>
+	 * 略
+	 *</pre>
+	 * @return boolean
+	 */
 	public function asMaster($isMaster = true):self
 	{
 		$this->isMaster = $isMaster;
@@ -887,6 +893,14 @@ class Query
 		return $this;
 	}
 
+	/**
+	 * 返回是否强制操作主库状态
+	 *<B>说明：</B>
+	 *<pre>
+	 * 略
+	 *</pre>
+	 * @return boolean
+	 */
 	public function asMasterStatus():bool
 	{
 		return $this->isMaster;
@@ -898,12 +912,12 @@ class Query
 	 *<pre>
 	 * 略
 	 *</pre>
-	 * @param string $rawSql sql语句
+	 * @param string $rawCmd 命令语句
 	 * @param array $params 绑定参数
 	 */
-	public function setRawCommand($rawSql,array $params = [])
+	public function setRawCommand($rawCmd,array $params = [])
 	{
-		$this->rawSql = $rawSql;
+		$this->rawCmd = $rawCmd;
 		$this->params = $params;
 
 		return $this;
@@ -930,7 +944,7 @@ class Query
      *<pre>
      * 略
      *</pre>
-     * @return  mixed
+     * @return mixed
      */
     public function getResult()
     {
@@ -948,7 +962,11 @@ class Query
         return $query_result;
     }
 
-    protected function getRawResult()
+	/**
+	 * 获取命令的原始结果(未经过处理的数据)
+	 * @return array|mixed|null
+	 */
+	public function getRawResult()
     {
         if ($this->isArray === true) {
             return $this->result;
@@ -996,7 +1014,7 @@ class Query
 	}
 
 	/**
-	 * 克隆当前　Query
+	 * 克隆当前Query
 	 *<B>说明：</B>
 	 *<pre>
 	 * 略
@@ -1004,7 +1022,7 @@ class Query
 	 * @param array $options
 	 * @return Query
 	 */
-	public function cloneQuery(array $options = [])
+	public function cloneQuery(array $options = []):Query
 	{
 		$class = new ReflectionClass($this);
 		$attrs = [];
@@ -1025,7 +1043,7 @@ class Query
 	}
 
 	/**
-	 * 是否写操作
+	 * 设置是否写操作
 	 *<B>说明：</B>
 	 *<pre>
 	 *  略
@@ -1040,16 +1058,24 @@ class Query
 		return $this;
 	}
 
+	/**
+	 * 返回是否写操作状态
+	 *<B>说明：</B>
+	 *<pre>
+	 *  略
+	 *</pre>
+	 * @return boolean
+	 */
 	public function asWriteStatus():bool
 	{
 		return $this->isWrite;
 	}
 
     /**
-     *  获取当前db 连接 对象
+     * 获取当前db连接对象
      *<B>说明：</B>
      *<pre>
-     *  将query 参数　转化标准格式
+     *  略
      *</pre>
      * @return DbConnection
      */
@@ -1104,27 +1130,26 @@ class Query
 	public function buildQueryCommand():QueryCommand
 	{
 		$dbConn = $this->getDb();
-		if (!empty($this->rawSql)) {
-			$querycmd = $dbConn->getQueryBuilder()->buildRawCommand($this);
-		} else {
-			$querycmd = $dbConn->getQueryBuilder()->buildParamsCommand($this);
-		}
+		$querycmd = $dbConn->getQueryBuilder()->buildQueryCommand($this);
 
 		return $querycmd;
 	}
 
-	public function toSql()
+	/**
+	 * 构建原始命令
+	 *<B>说明：</B>
+	 *<pre>
+	 *  将query参数转化标准的命令格式
+	 *</pre>
+	 * @return string
+	 */
+	public function toRawCommand()
 	{
 		$dbConn = $this->getDb();
-		if (!empty($this->rawSql)) {
-			$querycmd = $dbConn->getQueryBuilder()->buildRawCommand($this);
-		} else {
-			$querycmd = $dbConn->getQueryBuilder()->buildParamsCommand($this);
-		}
+		$querycmd = $dbConn->getQueryBuilder()->buildQueryCommand($this);
+		$raw_cmd = $querycmd->toRawCommand();
 
-		$sql = $this->dbsession->buildSqlByCommand($querycmd);
-
-		return $sql;
+		return $raw_cmd;
 	}
 
 }

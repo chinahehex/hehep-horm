@@ -5,7 +5,7 @@ namespace  horm\base;
  * 命令构建基类
  *<B>说明：</B>
  *<pre>
- *  1、所有操作数据库都必须事先生成sql
+ *  1、所有操作数据库都必须先构建命令参数
  *</pre>
  */
 class BaseQueryBuilder
@@ -73,23 +73,23 @@ class BaseQueryBuilder
 
 
 	/**
-	 * where 特殊处理函数
+	 * 定义where特殊处理函数
 	 *<B>说明：</B>
 	 *<pre>
 	 *  略
 	 *</pre>
-	 * @var array build
+	 * @var array
 	 */
 	protected $builders = [
-		'in'=>'bulidInWhere',
-		'notin'=>'bulidInWhere',
+		'in'=>'bulidInWhere',// in 条件
+		'notin'=>'bulidInWhere',// not in 条件
 		'between'=>'bulidBetweenWhere',
 		'exp'=>'bulidExpressionWhere',
 		'or'=>'bulidOrWhere',
 		'and'=>'bulidAndWhere',
 		'inc'=>'bulidIncData',// 加字段
 		'dec'=>'bulidDecData',// 减字段,
-        'raw'=>'bulidRawWhere',// 原始命令
+        'raw'=>'bulidRawWhere',// 原始命令,只用于连表操作
         'as'=>'bulidAsWhere',// 别名
         'eq'=>'bulidNormalWhere',// 等于
         'neq'=>'bulidNormalWhere',//不等于
@@ -102,7 +102,7 @@ class BaseQueryBuilder
 	];
 
 	/**
-	 * 是否启用预处理
+	 * 是否启用预处理参数化
 	 *<B>说明：</B>
 	 *<pre>
 	 *  略
@@ -112,7 +112,7 @@ class BaseQueryBuilder
 	protected $usebind = true;
 
 	/**
-	 * 绑定参数
+	 * 预处理参数集合
 	 *<B>说明：</B>
 	 *<pre>
 	 *  略
@@ -122,7 +122,7 @@ class BaseQueryBuilder
     protected $params = [];
 
 	/**
-	 * 绑定参数名称计数
+	 * 预定义参数名称计数
 	 *<B>说明：</B>
 	 *<pre>
 	 *  略
@@ -139,13 +139,13 @@ class BaseQueryBuilder
 	 *</pre>
 	 * @param DbConnection $dbconn 数据库驱动类
 	 */
-	public function __construct($dbconn = null)
+	public function __construct(BaseConnection $dbconn = null)
 	{
 		$this->dbconn = $dbconn;
 	}
 
     /**
-     * 字段名分析
+     * 格式化字段名,表名
      *<B>说明：</B>
      *<pre>
      *  此方法一般由继承类实现
@@ -159,12 +159,12 @@ class BaseQueryBuilder
     }
 
     /**
-     * 字段和表名处理
-     * @access protected
+     * 字段和表名格式化
+     * @param Query $query
      * @param string $column_name
      * @return string
      */
-    public function parseColumnName(Query $query,$column_name  = '')
+    public function parseColumnName(Query $query,string $column_name  = '')
     {
         if (substr($column_name,0,2) == '#.') {
             $table_alias = $query->getAlias();
@@ -185,15 +185,15 @@ class BaseQueryBuilder
     }
 
     /**
-     * 构建参数命令
+     * 构建Query参数命令
      *<B>说明：</B>
      *<pre>
      *  略
      *</pre>
-     * @param Query $query 命令对象
+     * @param Query $query
      * @return QueryCommand
      */
-    public function buildParamsCommand(Query $query)
+    public function buildParamsCommand(Query $query):QueryCommand
     {
         // 清空上次创建命令的资源(绑定参数)
         $this->params = [];
@@ -203,7 +203,24 @@ class BaseQueryBuilder
     }
 
     /**
-     * 直接构建sql命令
+     * 构建原始命令
+     *<B>说明：</B>
+     *<pre>
+     *  略
+     *</pre>
+     * @param Query $query
+     * @return QueryCommand
+     */
+    public function buildRawCommand(Query $query):QueryCommand
+    {
+        // 过滤原始sql,比如表名前缀
+        $rawCommand = $this->replaceCommand($query->getRawCmd());
+
+        return new QueryCommand(['command'=>$rawCommand,'params'=>$query->getParams()]);
+    }
+
+    /**
+     * 构建QueryCommand命令
      *<B>说明：</B>
      *<pre>
      *  略
@@ -211,13 +228,15 @@ class BaseQueryBuilder
      * @param Query $query 命令对象
      * @return QueryCommand
      */
-    public function buildRawCommand(Query $query)
+    public function buildQueryCommand(Query $query)
     {
-        // 过滤原始sql,比如表名前缀
-        $rawCommand = $this->replaceSql($query->getRawSql());
-
-        return new QueryCommand(['command'=>$rawCommand,'params'=>$query->getParams()]);
+        if (!empty($query->getRawCmd())) {
+            return $this->buildRawCommand($query);
+        } else {
+            return $this->buildParamsCommand($query);
+        }
     }
+
 
     /**
      * 格式化指令参数
@@ -229,10 +248,10 @@ class BaseQueryBuilder
      * @param Query $query sql 参数
      * @return QueryCommand
      */
-    protected function createCommand($rawCommand,$query = null)
+    protected function createCommand($rawCommand,$query = null):QueryCommand
     {
         $params = $query->getParams();
-        $params = $this->parseParams($params);
+        $params = $this->getBuildParams($params);
 
         return new QueryCommand(['command'=>$rawCommand,'params'=>$params]);
     }
@@ -246,7 +265,7 @@ class BaseQueryBuilder
      * @param Query $query
      * @return string
      */
-    public function buildQueryRawCommand(Query $query)
+    protected function buildQueryRawCommand(Query $query)
     {
         $build = $query->getBuild();
         list($method,$params) = $build;
@@ -256,7 +275,7 @@ class BaseQueryBuilder
     }
 
     /**
-     * build 字段sql
+     * 构建预处理参数化
      *<B>说明：</B>
      *<pre>
      *  略
@@ -279,7 +298,7 @@ class BaseQueryBuilder
     }
 
     /**
-     * 解析value分析
+     * 格式化字段值
      *<B>说明：</B>
      *<pre>
      * 略
@@ -332,7 +351,7 @@ class BaseQueryBuilder
      * @param string $expression 表达式名称
      * @return string
      */
-    public function getExpressionMethod($expression = '')
+    protected function getExpressionMethod($expression = '')
     {
         if (!empty($expression) && isset($this->builders[$expression])) {
             return  $this->builders[$expression];
@@ -363,10 +382,8 @@ class BaseQueryBuilder
         return call_user_func_array([$this, $method] ,[$query,$expression, [$column,$value]]);
     }
 
-
-
     /**
-     * 获取绑定参数
+     * 获取构建的绑定参数
      *<B>说明：</B>
      *<pre>
      *  获取绑定参数，清空绑定参数
@@ -374,7 +391,7 @@ class BaseQueryBuilder
      * @param array $params 绑定参数
      * @return array
      */
-    public function parseParams($params = [])
+    public function getBuildParams($params = [])
     {
         $params = array_merge($this->params,is_array($params) ? $params : []);
         $this->params = [];
@@ -389,8 +406,9 @@ class BaseQueryBuilder
      *<pre>
      * 略
      *</pre>
-     * @param string|Query $table 表名
-     * @return string 表名，多个表名逗号隔开
+     * @param Query $query
+     * @param string|array|Query $table 表名
+     * @return string
      */
     protected function parseTable(Query $query,$table = '')
     {
@@ -457,10 +475,10 @@ class BaseQueryBuilder
      *<pre>
      *  1、替换{{}},[[]]大括号内的表名加上前缀
      *</pre>
-     * @param string $sql
+     * @param string $command
      * @return string
      */
-    public function replaceSql($sql = '')
+    protected function replaceCommand($command = '')
     {
         //替换表名
         return preg_replace_callback(
@@ -487,7 +505,7 @@ class BaseQueryBuilder
 
                 return $table;
             },
-            $sql
+            $command
         );
     }
 
@@ -497,8 +515,8 @@ class BaseQueryBuilder
      *<pre>
      *  略
      *</pre>
-     * @param Query $query 命令对象
-     * @return array
+     * @param Query $query
+     * @return array|string
      */
     public function insertAll(Query $query)
     {

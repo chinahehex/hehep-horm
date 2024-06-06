@@ -247,17 +247,17 @@ class OciCurdTest extends CurdTest
         );
 
         // 查询sql
-        $users = $this->hdbsession->querySql('select * from "web_admin_users" where "id" in (1,2)');
+        $users = $this->hdbsession->queryCmd('select * from "web_admin_users" where "id" in (1,2)');
         $this->assertTrue(!empty($users) &&
             count($users) == 2 &&
             $users[0]['username'] == 'hehe1' &&
             $users[1]['username'] == 'admin'
         );
 
-        $number = $this->hdbsession->execSql('update "web_admin_users" set "tel"=\'135xxxxbbbb\' where "id" = 2');
+        $number = $this->hdbsession->execCmd('update "web_admin_users" set "tel"=\'135xxxxbbbb\' where "id" = 2');
         $this->assertTrue($number == 1);
 
-        $number = $this->hdbsession->execSql('update "web_admin_users" set "tel"=:tel where "id" = 2',['tel'=>'135xxxx' .  rand(10000,99999)]);
+        $number = $this->hdbsession->execCmd('update "web_admin_users" set "tel"=:tel where "id" = 2',['tel'=>'135xxxx' .  rand(10000,99999)]);
         $this->assertTrue($number == 1);
 
     }

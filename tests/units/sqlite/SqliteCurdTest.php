@@ -23,6 +23,11 @@ class SqliteCurdTest extends CurdTest
         parent::testAdd();
     }
 
+    public function testUnion()
+    {
+        parent::testUnion();
+    }
+
 
 
 

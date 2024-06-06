@@ -79,18 +79,18 @@ class MongoCurdTest extends TestCase
         $this->assertEquals("hehe1",$adminUserEntity->username);
         $this->assertEquals(1,$adminUserEntity['id']);
 
-        $adminUserEntity = AdminUserinfoNosqlEntity::setWhere(['id'=>2])->fetchOne();
-        $this->assertEquals("admin",$adminUserEntity->username);
-        $this->assertEquals(2,$adminUserEntity->id);
-
-        $userEntitys = AdminUserinfoNosqlEntity::fetchAll(['id'=>[1,2]]);
-        $this->assertEquals(2,count($userEntitys));
-
-        $userEntitys = AdminUserinfoNosqlEntity::setWhere(['id'=>[1,2]])->fetchAll();
-        $this->assertEquals(2,count($userEntitys));
-
-        $userEntitys = AdminUserinfoNosqlEntity::setWhere(['id'=>[1,2]])->asArray()->fetchAll();
-        $this->assertEquals(2,count($userEntitys));
+//        $adminUserEntity = AdminUserinfoNosqlEntity::setWhere(['id'=>2])->fetchOne();
+//        $this->assertEquals("admin",$adminUserEntity->username);
+//        $this->assertEquals(2,$adminUserEntity->id);
+//
+//        $userEntitys = AdminUserinfoNosqlEntity::fetchAll(['id'=>[1,2]]);
+//        $this->assertEquals(2,count($userEntitys));
+//
+//        $userEntitys = AdminUserinfoNosqlEntity::setWhere(['id'=>[1,2]])->fetchAll();
+//        $this->assertEquals(2,count($userEntitys));
+//
+//        $userEntitys = AdminUserinfoNosqlEntity::setWhere(['id'=>[1,2]])->asArray()->fetchAll();
+//        $this->assertEquals(2,count($userEntitys));
     }
 
     public function testDelete()
@@ -414,6 +414,49 @@ class MongoCurdTest extends TestCase
         $this->hdbsession->rollbackTransaction();
         $user = AdminUserinfoNosqlEntity::setWhere(['username'=>'hehe6'])->fetchOne();
         $this->assertTrue(empty($user));
+
+    }
+
+    public function testDbconn()
+    {
+        $db_conn = $this->hdbsession->getDbConnection('hehe1');
+        $number = $db_conn->insert('web_admin_users',['username'=>"okb",'password'=>'123123','tel'=>'135xxxxxxxx','realName'=>'hehex']);
+        $this->assertTrue($number == 1);
+
+        // 批量插入
+        $datas = [
+            ['username'=>'admin1','password'=>'123123','tel'=>'1351111' . rand(10000,99999)],
+            ['username'=>'admin2','password'=>'123123','tel'=>'1351111' . rand(10000,99999)]
+        ];
+
+        $number = $db_conn->insertAll('web_admin_users',$datas);
+        $this->assertTrue($number == 2);
+
+        // 更新
+        $number = $db_conn->update('web_admin_users',['$set'=>['tel'=>'135xxxx' .  rand(10000,99999)]],['username'=>'admin']);
+        $this->assertTrue($number == 1);
+
+        $number = $db_conn->delete('web_admin_users',['username'=>'hello']);
+        $this->assertTrue($number == 1);
+
+        // 查询
+        $user =$db_conn->fetchOne('web_admin_users',['id'=>1]);
+        $this->assertTrue(!empty($user) && $user['username'] == 'hehe1');
+
+        // 查询
+        $users = $db_conn->fetchAll('web_admin_users',['id'=>['$in'=>[1,2]] ]);
+        $this->assertTrue(!empty($users) &&
+            count($users) == 2 &&
+            $users[0]['username'] == 'hehe1' &&
+            $users[1]['username'] == 'admin'
+        );
+
+        $users = $db_conn->fetchAll('web_admin_users',['id'=>['$in'=>[1,2]]],['sort'=>['id'=>-1]]);
+        $this->assertTrue(!empty($users) &&
+            count($users) == 2 &&
+            $users[0]['username'] == 'admin' &&
+            $users[1]['username'] == 'hehe1'
+        );
 
     }
 

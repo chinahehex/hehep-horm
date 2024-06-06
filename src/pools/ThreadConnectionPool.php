@@ -73,11 +73,20 @@ class ThreadConnectionPool extends ConnectionPool
         parent::__construct($attrs);
 
         $this->_saleLocal = $this->dbsession->createSaleLocal();
+
+        $this->preloadConnection();
     }
 
-    protected function _init()
+    /**
+     * 预加载连接
+     */
+    protected function preloadConnection()
     {
-        for($i = 0;$i < $this->preload;$i++) {
+        if ($this->preload <= 0) {
+            return ;
+        }
+
+        for ($i = 0;$i < $this->preload;$i++) {
             $this->_freeConnections[] = $this->createConnection();
         }
     }
@@ -95,7 +104,7 @@ class ThreadConnectionPool extends ConnectionPool
         // 加锁
         $freenum = count($this->_freeConnections);
         if ($freenum <= 0) {
-            // 如果,报错异常，忘记提交事务,如何回收资源
+            // 如果报错异常，忘记提交事务,如何回收资源
             $conn = $this->threadConnection;
             // 直接获取当前线程连接
             if (!empty($conn)) {
@@ -120,24 +129,6 @@ class ThreadConnectionPool extends ConnectionPool
         return $conn;
     }
 
-    public function __get($name)
-    {
-        if (empty($this->_saleLocal)) {
-            return null;
-        }
-
-        return $this->_saleLocal->getAttribute($name);
-    }
-
-    public function __set($name, $value)
-    {
-        if (empty($this->_saleLocal)) {
-            return ;
-        }
-
-        $this->_saleLocal->setAttribute($name,$value);
-    }
-
     /**
      * 释放连接
      *<B>说明：</B>
@@ -160,6 +151,16 @@ class ThreadConnectionPool extends ConnectionPool
         }
 
         $this->threadConnection = null;
+    }
+
+    public function __get($name)
+    {
+        return $this->_saleLocal->getAttribute($name);
+    }
+
+    public function __set($name, $value)
+    {
+        $this->_saleLocal->setAttribute($name,$value);
     }
 
 }

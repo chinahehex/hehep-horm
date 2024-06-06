@@ -1,18 +1,18 @@
 <?php
-namespace  horm\drivers\pgsql;
+namespace  horm\drivers\sqlsrv;
 
 use horm\base\BaseQueryBuilder;
 use horm\base\DbConnection;
 
 
 /**
- * Pgsql 连接类
+ * mysql 连接类
  *<B>说明：</B>
  *<pre>
  *  略
  *</pre>
  */
-class PgsqlDbConnection extends DbConnection
+class SqlsrvDbConnection extends DbConnection
 {
 
 
@@ -22,9 +22,9 @@ class PgsqlDbConnection extends DbConnection
      *<pre>
      *  略
      *</pre>
-     * @var PgsqlQueryBuilder
+     * @var SqlsrvQueryBuilder
      */
-    private $builder = null;
+    private $builder;
 
     /**
      * 获取sql生成对象
@@ -32,9 +32,9 @@ class PgsqlDbConnection extends DbConnection
      *<pre>
      *  略
      *</pre>
-     * @return PgsqlQueryBuilder
+     * @return SqlsrvQueryBuilder
      */
-    public function getQueryBuilder():PgsqlQueryBuilder
+    public function getQueryBuilder():SqlsrvQueryBuilder
     {
         if ($this->builder === null) {
             $this->builder = $this->createQueryBuilder();
@@ -49,11 +49,11 @@ class PgsqlDbConnection extends DbConnection
      *<pre>
      *  略
      *</pre>
-     * @return PgsqlQueryBuilder
+     * @return SqlsrvQueryBuilder
      */
-    public function createQueryBuilder():PgsqlQueryBuilder
+    public function createQueryBuilder()
     {
-        return new PgsqlQueryBuilder($this);
+        return new SqlsrvQueryBuilder($this);
     }
 
     /**
@@ -66,19 +66,15 @@ class PgsqlDbConnection extends DbConnection
      */
     protected function parseDsn()
     {
-        $dsn = 'pgsql:dbname=' . $this->getConfig("database") . ';host=' . $this->getConfig("host");
 
-        if (!empty($this->getConfig("port"))) {
-            $dsn .= ';port=' . $this->getConfig("port");
-        }
+        $dsn = 'sqlsrv:Database=' . $this->config['database'] . ';Server=' . $this->config['host'];
 
-        if (!empty($this->config['charset'])) {
-            $dsn  .= ";options='--client_encoding=".$this->config['charset']."'";
+        if (!empty($this->config['port'])) {
+            $dsn .= ',' . $this->config['port'];
         }
 
         return $dsn;
     }
-
 
 
 }
