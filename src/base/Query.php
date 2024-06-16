@@ -654,7 +654,7 @@ class Query
 		}
 	}
 
-	public function getSeq()
+	public function getSequence()
 	{
 		return $this->sequence;
 	}

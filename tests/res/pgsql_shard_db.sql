@@ -11,7 +11,6 @@ CREATE TABLE web_admin_users_info (
     "ctime" varchar(32) DEFAULT ''
 ) ;
 
-ALTER SEQUENCE web_admin_users_info{{:shard}}_id_seq RESTART WITH 1;
 
 
 

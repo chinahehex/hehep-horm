@@ -53,6 +53,8 @@ abstract class BaseConnection
      */
 	protected static $ref_method_cache = [];
 
+	protected $_slaveHandler;
+
     /**
      * 构造方法
      *<B>说明：</B>
@@ -153,7 +155,7 @@ abstract class BaseConnection
     public function getSlaveDbkey()
     {
         if (empty($this->_slaveHandler)) {
-            $this->_slaveHandler = $this->dbsession->buildSlaveHandler($this->config['slaveHandler']);
+            $this->_slaveHandler = $this->dbsession->buildSlaveHandler($this->getConfig('slaveHandler'));
             if (empty($this->_slaveHandler)) {
                 $this->_slaveHandler = [$this,'randSlave'];
             }

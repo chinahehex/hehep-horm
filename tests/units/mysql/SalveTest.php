@@ -13,9 +13,9 @@ class SalveTest extends TestCase
     protected function setUp()
     {
         parent::setUp();
-        static::makeDb('hehe_master','hehe_master','hehe.sql',['onSlave'=>true,'slaves'=>['hehe_slave1','hehe_slave2']]);
-        static::makeDb('hehe_slave1','hehe_slave1','hehe.sql');
-        static::makeDb('hehe_slave2','hehe_slave2','hehe.sql');
+        static::makeDb('hehe_master','hehe_master','hehe.sql',['driver'=>'mysql','onSlave'=>true,'slaves'=>['hehe_slave1','hehe_slave2']]);
+        static::makeDb('hehe_slave1','hehe_slave1','hehe.sql',['driver'=>'mysql',]);
+        static::makeDb('hehe_slave2','hehe_slave2','hehe.sql',['driver'=>'mysql',]);
 
     }
 

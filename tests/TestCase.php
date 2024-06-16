@@ -212,7 +212,12 @@ class TestCase extends \PHPUnit\Framework\TestCase
             } else if (isset($dbconfig['driver']) && $dbconfig['driver'] == 'sqlsrv') {
                 $pdo = static::getPdo($dbconfig['driver'],static::$db_config['sqlsrv_dbname']);
                 $createDbSql = "CREATE DATABASE {$db_name}";
-                $result = $pdo->exec($createDbSql);
+
+                $stmt = $pdo->query("select * From master.dbo.sysdatabases where name='{$db_name}'");
+                if ($stmt->rowCount() == 0) {
+                    $pdo->exec($createDbSql);
+                }
+
                 unset($pdo);
             } else if (isset($dbconfig['driver']) && $dbconfig['driver'] == 'mongo') {
                 $createDbSql = "use {$db_name}";

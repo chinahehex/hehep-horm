@@ -10,7 +10,7 @@ class CurdTest extends TestCase
     protected function setUp()
     {
         $this->hdbsession = static::getDbsession();
-        static::makeDb('hehe1','hehe_test','hehe.sql');
+        static::makeDb('hehe1','hehe_test','hehe.sql',['driver'=>'mysql']);
     }
 
     protected function tearDown()

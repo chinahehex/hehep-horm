@@ -1902,7 +1902,7 @@ abstract class BaseTable
 
         $result = $query->getResult();
         if ($query->asId()) {
-            $result = $this->getLastId($query->getSeq);
+            $result = $this->getLastId($query->getSequence());
         }
 
         // 释放对象

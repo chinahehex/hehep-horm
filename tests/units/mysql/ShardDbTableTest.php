@@ -12,10 +12,10 @@ class ShardDbTableTest extends TestCase
     protected function setUp()
     {
 
-        static::makeDb('hehe','hehe_test','hehe.sql');
-        static::makeDb('hehe_0','hehe_test0','');
-        static::makeDb('hehe_1','hehe_test1','');
-        static::makeDb('hehe_2','hehe_test2','');
+        static::makeDb('hehe','hehe_test','hehe.sql',['driver'=>'mysql',]);
+        static::makeDb('hehe_0','hehe_test0','',['driver'=>'mysql',]);
+        static::makeDb('hehe_1','hehe_test1','',['driver'=>'mysql',]);
+        static::makeDb('hehe_2','hehe_test2','',['driver'=>'mysql',]);
 
         static::createMysqlShardTable('hehe_test0','shard_table.sql',"0");
         static::createMysqlShardTable('hehe_test1','shard_table.sql',"1");
