@@ -1,6 +1,6 @@
 {
 	"name": "hehex/hehep-horm",
-	"description": "hehep-horm 是一个PHP数据库操作组件",
+	"description": "hehep-horm 是一个PHP数据库工具组件",
 	"license": "Apache-2.0",
 	"authors": [
 		{
